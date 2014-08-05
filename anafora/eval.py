@@ -88,8 +88,8 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
         props = set()
         for ann in annotations:
             spans = ann.spans
-            if _accept(ann.type, "span"):
-                props.add((spans, (ann.type, "span")))
+            if _accept(ann.type, "<span>"):
+                props.add((spans, (ann.type, "<span>")))
             for prop_name in ann.properties:
                 prop_value = ann.properties[prop_name]
                 if _accept(ann.type, prop_name):

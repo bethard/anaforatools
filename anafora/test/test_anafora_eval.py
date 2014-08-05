@@ -87,16 +87,16 @@ def test_score_data():
     """))
     named_scores = anafora.eval.score_data(reference, predicted)
     assert set(named_scores.keys()) == {
-        "X", ("X", "span"),
-        "Y", ("Y", "span"),
-        "Z", ("Z", "span"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
+        "X", ("X", "<span>"),
+        "Y", ("Y", "<span>"),
+        "Z", ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
     }
     scores = named_scores["X"]
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 2
-    scores = named_scores["X", "span"]
+    scores = named_scores["X", "<span>"]
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 2
@@ -104,7 +104,7 @@ def test_score_data():
     assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 1
-    scores = named_scores["Y", "span"]
+    scores = named_scores["Y", "<span>"]
     assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 1
@@ -112,7 +112,7 @@ def test_score_data():
     assert scores.correct == 0
     assert scores.reference == 2
     assert scores.predicted == 2
-    scores = named_scores["Z", "span"]
+    scores = named_scores["Z", "<span>"]
     assert scores.correct == 2
     assert scores.reference == 2
     assert scores.predicted == 2
@@ -143,14 +143,14 @@ def test_score_data():
 
     named_scores = anafora.eval.score_data(reference, predicted, exclude=["X", "Y"])
     assert set(named_scores.keys()) == {
-        ("Z"), ("Z", "span"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
+        ("Z"), ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
     }
     scores = named_scores["Z"]
     assert scores.correct == 0
     assert scores.reference == 2
     assert scores.predicted == 2
-    scores = named_scores["Z", "span"]
+    scores = named_scores["Z", "<span>"]
     assert scores.correct == 2
     assert scores.reference == 2
     assert scores.predicted == 2
@@ -193,7 +193,7 @@ def test_score_data():
     assert scores.reference == 0
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, include=["Z"], exclude=[("Z", "span")])
+    named_scores = anafora.eval.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")])
     assert set(named_scores.keys()) == {
         "Z", ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
