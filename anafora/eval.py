@@ -56,6 +56,8 @@ def _group_by(reference_iterable, predicted_iterable, key_function):
     return result
 
 
+
+
 def score_data(reference_data, predicted_data, include=None, exclude=None, xml_name=None):
     """
     :param AnaforaData reference_data: reference ("gold standard") Anafora data
@@ -67,22 +69,33 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
     :param string xml_name: name of the Anafora XML file being compared (used only for logging purposes)
     :return dict: mapping of (annotation type, property) to Scores object
     """
+    def _accept(type_name, prop_name=None, prop_value=None):
+        if include is not None:
+            if type_name not in include:
+                if (type_name, prop_name) not in include:
+                    if (type_name, prop_name, prop_value) not in include:
+                        return False
+        if exclude is not None:
+            if type_name in exclude:
+                return False
+            if (type_name, prop_name) in exclude:
+                return False
+            if (type_name, prop_name, prop_value) in exclude:
+                return False
+        return True
+
     def _props(annotations):
         props = set()
         for ann in annotations:
-            if exclude is not None and ann.type in exclude:
-                continue
             spans = ann.spans
-            if ((include is None or ann.type in include or (ann.type, "span") in include) and
-                    (exclude is None or (ann.type, "span") not in exclude)):
+            if _accept(ann.type, "span"):
                 props.add((spans, "span"))
             for prop_name in ann.properties:
-                value = ann.properties[prop_name]
-                type_name = ann.type, prop_name
-                type_name_value = ann.type, prop_name, value
-                if ((include is None or ann.type in include or type_name in include or type_name_value in include) and
-                        (exclude is None or (type_name not in exclude and type_name_value not in exclude))):
-                    props.add((spans, prop_name, value))
+                prop_value = ann.properties[prop_name]
+                if _accept(ann.type, prop_name):
+                    props.add((spans, prop_name, prop_value))
+                if _accept(ann.type, prop_name, prop_value) and isinstance(prop_value, basestring):
+                    props.add((spans, prop_name + ":" + prop_value, prop_value))
         return props
 
     result = collections.defaultdict(lambda: Scores())
@@ -90,7 +103,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
     groups = _group_by(reference_data.annotations, predicted_annotations, lambda a: a.type)
     for ann_type in sorted(groups):
         reference_annotations, predicted_annotations = groups[ann_type]
-        if (include is None or ann_type in include) and (exclude is None or ann_type not in exclude):
+        if _accept(ann_type):
             missed, added = result[ann_type, ""].add(reference_annotations, predicted_annotations)
             if predicted_data is not None:
                 for annotation in missed:
@@ -116,13 +129,16 @@ def _load_and_validate(schema, xml_path):
         logging.warn("%s: ignoring invalid XML", xml_path)
         return None
     else:
-        for annotation, error in schema.errors(data):
-            logging.warn("%s: removing invalid annotation: %s", xml_path, error)
-            data.annotations.remove(annotation)
-        for span, annotations in anafora.validate.find_entities_with_identical_spans(data):
-            logging.warn("%s: removing all but first annotation with span %s", xml_path, span)
-            for annotation in annotations[1:]:
+        errors = schema.errors(data)
+        while errors:
+            for annotation, error in errors:
+                logging.warn("%s: removing invalid annotation: %s", xml_path, error)
                 data.annotations.remove(annotation)
+            for span, annotations in anafora.validate.find_entities_with_identical_spans(data):
+                logging.warn("%s: removing all but first annotation with span %s", xml_path, span)
+                for annotation in annotations[1:]:
+                    data.annotations.remove(annotation)
+            errors = schema.errors(data)
         return data
 
 
@@ -156,11 +172,11 @@ def _print_scores(named_scores):
     """
     :param dict named_scores: mapping of (annotation type, span or property) to Scores object
     """
-    print("{0:10}\t{1:20}\t{2:^5}\t{3:^5}\t{4:^5}\t{5:^5}\t{6:^5}\t{7:^5}".format(
+    print("{0:10}\t{1:30}\t{2:^5}\t{3:^5}\t{4:^5}\t{5:^5}\t{6:^5}\t{7:^5}".format(
         "", "", "ref", "pred", "corr", "P", "R", "F1"))
     for ann_type, ann_name in sorted(named_scores):
         scores = named_scores[ann_type, ann_name]
-        print("{0:10}\t{1:20}\t{2:5}\t{3:5}\t{4:5}\t{5:5.3f}\t{6:5.3f}\t{7:5.3f}".format(
+        print("{0:10}\t{1:30}\t{2:5}\t{3:5}\t{4:5}\t{5:5.3f}\t{6:5.3f}\t{7:5.3f}".format(
             ann_type, ann_name, scores.reference, scores.predicted, scores.correct,
             scores.precision(), scores.recall(), scores.f1()))
 
