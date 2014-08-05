@@ -89,13 +89,13 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
         for ann in annotations:
             spans = ann.spans
             if _accept(ann.type, "span"):
-                props.add((spans, "span"))
+                props.add((spans, (ann.type, "span")))
             for prop_name in ann.properties:
                 prop_value = ann.properties[prop_name]
                 if _accept(ann.type, prop_name):
-                    props.add((spans, prop_name, prop_value))
+                    props.add((spans, (ann.type, prop_name), prop_value))
                 if _accept(ann.type, prop_name, prop_value) and isinstance(prop_value, basestring):
-                    props.add((spans, prop_name + ":" + prop_value, prop_value))
+                    props.add((spans, (ann.type, prop_name, prop_value), prop_value))
         return props
 
     result = collections.defaultdict(lambda: Scores())
@@ -104,7 +104,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
     for ann_type in sorted(groups):
         reference_annotations, predicted_annotations = groups[ann_type]
         if _accept(ann_type):
-            missed, added = result[ann_type, ""].add(reference_annotations, predicted_annotations)
+            missed, added = result[ann_type].add(reference_annotations, predicted_annotations)
             if predicted_data is not None:
                 for annotation in missed:
                     logging.debug("Missed%s:\n%s", " in " + xml_name if xml_name else "", str(annotation).rstrip())
@@ -114,7 +114,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
         prop_groups = _group_by(_props(reference_annotations), _props(predicted_annotations), lambda t: t[1])
         for name in sorted(prop_groups):
             reference_tuples, predicted_tuples = prop_groups[name]
-            result[ann_type, name].add(reference_tuples, predicted_tuples)
+            result[name].add(reference_tuples, predicted_tuples)
 
     return result
 
@@ -172,12 +172,17 @@ def _print_scores(named_scores):
     """
     :param dict named_scores: mapping of (annotation type, span or property) to Scores object
     """
-    print("{0:10}\t{1:30}\t{2:^5}\t{3:^5}\t{4:^5}\t{5:^5}\t{6:^5}\t{7:^5}".format(
-        "", "", "ref", "pred", "corr", "P", "R", "F1"))
-    for ann_type, ann_name in sorted(named_scores):
-        scores = named_scores[ann_type, ann_name]
-        print("{0:10}\t{1:30}\t{2:5}\t{3:5}\t{4:5}\t{5:5.3f}\t{6:5.3f}\t{7:5.3f}".format(
-            ann_type, ann_name, scores.reference, scores.predicted, scores.correct,
+    def _score_name(name):
+        if isinstance(name, tuple):
+            name = ":".join(name)
+        return name
+
+    print("{0:40}\t{1:^5}\t{2:^5}\t{3:^5}\t{4:^5}\t{5:^5}\t{6:^5}".format(
+        "", "ref", "pred", "corr", "P", "R", "F1"))
+    for name in sorted(named_scores, key=_score_name):
+        scores = named_scores[name]
+        print("{0:40}\t{1:5}\t{2:5}\t{3:5}\t{4:5.3f}\t{5:5.3f}\t{6:5.3f}".format(
+            _score_name(name), scores.reference, scores.predicted, scores.correct,
             scores.precision(), scores.recall(), scores.f1()))
 
 
