@@ -119,7 +119,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
     return result
 
 
-def _load_and_validate(schema, xml_path):
+def _load_and_remove_errors(schema, xml_path):
     if not os.path.exists(xml_path):
         logging.warn("%s: no such file", xml_path)
         return None
@@ -134,10 +134,6 @@ def _load_and_validate(schema, xml_path):
             for annotation, error in errors:
                 logging.warn("%s: removing invalid annotation: %s", xml_path, error)
                 data.annotations.remove(annotation)
-            for span, annotations in anafora.validate.find_entities_with_identical_spans(data):
-                logging.warn("%s: removing all but first annotation with span %s", xml_path, span)
-                for annotation in annotations[1:]:
-                    data.annotations.remove(annotation)
             errors = schema.errors(data)
         return data
 
@@ -158,8 +154,8 @@ def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None)
         reference_xml_path = os.path.join(reference_dir, sub_dir, xml_name)
         predicted_xml_path = os.path.join(predicted_dir, sub_dir, xml_name)
 
-        reference_data = _load_and_validate(schema, reference_xml_path)
-        predicted_data = _load_and_validate(schema, predicted_xml_path)
+        reference_data = _load_and_remove_errors(schema, reference_xml_path)
+        predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
 
         named_scores = score_data(reference_data, predicted_data, include, exclude, xml_name)
         for name, scores in named_scores.items():
