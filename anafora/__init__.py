@@ -1,6 +1,7 @@
 import collections
 import itertools
 import os
+import re
 
 try:
     import xml.etree.cElementTree as ElementTree
@@ -8,17 +9,17 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-def walk(anafora_dir):
+def walk(anafora_dir, xml_name_regex="[.]xml$"):
     """
     :param anafora_dir: directory containing Anafora XML directories
-    :return: an iterator of (dir-path, sub-dir, file-name) for the XML files in the directories
+    :return: an iterator of (dir-path, sub-dir, file-names) for the XML files in the directories
     """
     for subdir in os.listdir(anafora_dir):
         if os.path.isdir(os.path.join(anafora_dir, subdir)):
-            for xml_name in os.listdir(os.path.join(anafora_dir, subdir)):
-                if not xml_name.endswith(".xml"):
-                    continue
-                yield anafora_dir, subdir, xml_name
+            xml_names = [xml_name
+                         for xml_name in os.listdir(os.path.join(anafora_dir, subdir))
+                         if re.search(xml_name_regex, xml_name) is not None]
+            yield anafora_dir, subdir, xml_names
 
 
 class _XMLWrapper(object):

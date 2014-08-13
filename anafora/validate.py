@@ -94,15 +94,16 @@ def log_schema_errors(schema, anafora_dir):
     :param Schema schema: the schema to validate against
     :param string anafora_dir: the Anafora directory containing directories to validate
     """
-    for anafora_dir, sub_dir, xml_name in anafora.walk(anafora_dir):
-        xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
-        try:
-            data = anafora.AnaforaData.from_file(xml_path)
-        except anafora.ElementTree.ParseError:
-            logging.warn("%s: invalid XML", xml_path)
-        else:
-            for annotation, error in schema.errors(data):
-                logging.warn("%s: %s", xml_path, error)
+    for anafora_dir, sub_dir, xml_names in anafora.walk(anafora_dir):
+        for xml_name in xml_names:
+            xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
+            try:
+                data = anafora.AnaforaData.from_file(xml_path)
+            except anafora.ElementTree.ParseError:
+                logging.warn("%s: invalid XML", xml_path)
+            else:
+                for annotation, error in schema.errors(data):
+                    logging.warn("%s: %s", xml_path, error)
 
 
 def find_entities_with_identical_spans(data):
@@ -121,16 +122,17 @@ def log_entities_with_identical_spans(anafora_dir):
     """
     :param AnaforaData data: the Anafora data to be searched
     """
-    for anafora_dir, sub_dir, xml_name in anafora.walk(anafora_dir):
-        xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
-        try:
-            data = anafora.AnaforaData.from_file(xml_path)
-        except anafora.ElementTree.ParseError:
-            pass
-        else:
-            for span, annotations in find_entities_with_identical_spans(data):
-                logging.warn("%s: multiple entities for span %s:\n%s",
-                             xml_path, span, "\n".join(str(ann).rstrip() for ann in annotations))
+    for anafora_dir, sub_dir, xml_names in anafora.walk(anafora_dir):
+        for xml_name in xml_names:
+            xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
+            try:
+                data = anafora.AnaforaData.from_file(xml_path)
+            except anafora.ElementTree.ParseError:
+                pass
+            else:
+                for span, annotations in find_entities_with_identical_spans(data):
+                    logging.warn("%s: multiple entities for span %s:\n%s",
+                                 xml_path, span, "\n".join(str(ann).rstrip() for ann in annotations))
 
 
 if __name__ == "__main__":

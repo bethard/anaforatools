@@ -4,6 +4,7 @@ import argparse
 import collections
 import logging
 import os
+import re
 
 import anafora
 import anafora.validate
@@ -54,8 +55,6 @@ def _group_by(reference_iterable, predicted_iterable, key_function):
         for item in iterable:
             result[key_function(item)][index].add(item)
     return result
-
-
 
 
 def score_data(reference_data, predicted_data, include=None, exclude=None, xml_name=None):
@@ -140,6 +139,7 @@ def _load_and_remove_errors(schema, xml_path):
 
 def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None):
     """
+    :param schema: Anafora schema against which Anafora XML should be valdiated
     :param string reference_dir: directory containing reference ("gold standard") Anafora XML directories
     :param string predicted_dir: directory containing predicted (system-generated) Anafora XML directories
     :param set include: types of annotations to include (others will be excluded); may be type names,
@@ -150,16 +150,68 @@ def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None)
     """
     result = collections.defaultdict(lambda: Scores())
 
-    for _, sub_dir, xml_name in anafora.walk(reference_dir):
-        reference_xml_path = os.path.join(reference_dir, sub_dir, xml_name)
-        predicted_xml_path = os.path.join(predicted_dir, sub_dir, xml_name)
+    for _, sub_dir, xml_names in anafora.walk(reference_dir):
+        for xml_name in xml_names:
+            reference_xml_path = os.path.join(reference_dir, sub_dir, xml_name)
+            predicted_xml_path = os.path.join(predicted_dir, sub_dir, xml_name)
 
-        reference_data = _load_and_remove_errors(schema, reference_xml_path)
-        predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
+            reference_data = _load_and_remove_errors(schema, reference_xml_path)
+            predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
 
-        named_scores = score_data(reference_data, predicted_data, include, exclude, xml_name)
-        for name, scores in named_scores.items():
-            result[name].update(scores)
+            named_scores = score_data(reference_data, predicted_data, include, exclude, xml_name)
+            for name, scores in named_scores.items():
+                result[name].update(scores)
+
+    return result
+
+
+def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=None):
+    """
+    :param schema: Anafora schema against which Anafora XML should be valdiated
+    :param anafora_dir: directory containing Anafora XML directories
+    :param xml_name_regex: regular expression matching the annotator files to be compared
+    :param include: types of annotations to include (others will be excluded); may be type names,
+        (type-name, property-name) tuples, (type-name, property-name, property-value) tuples
+    :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
+        (type-name, property-name, property-value) tuples
+    :return dict: mapping of (annotation type, property) to Scores object
+    """
+    result = collections.defaultdict(lambda: Scores())
+
+    annotator_name_regex = "([^.]*)[.][^.]*[.]xml$"
+
+    def make_prefix(annotators):
+        return "{0}-vs-{1}".format(*sorted(annotators))
+
+    for _, sub_dir, xml_names in anafora.walk(anafora_dir, xml_name_regex):
+        if len(xml_names) < 2:
+            logging.warn("%s: found fewer than 2 annotators: %s", sub_dir, xml_names)
+            continue
+
+        annotator_data = []
+        for xml_name in xml_names:
+            if '.inprogress.' in xml_name:
+                continue
+            annotator_name = re.search(annotator_name_regex, xml_name).group(1)
+            xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
+            if os.stat(xml_path).st_size == 0:
+                continue
+            data = _load_and_remove_errors(schema, xml_path)
+            annotator_data.append((annotator_name, data))
+
+        for i in range(len(annotator_data)):
+            annotator1, data1 = annotator_data[i]
+            for j in range(i + 1, len(annotator_data)):
+                annotator2, data2 = annotator_data[j]
+                prefix = make_prefix([annotator1, annotator2])
+                general_prefix = make_prefix(
+                    a if a == "gold" else "annotator" for a in [annotator1, annotator2])
+                named_scores = score_data(data1, data2, include, exclude, sub_dir)
+                for name, scores in named_scores.items():
+                    if not isinstance(name, tuple):
+                        name = name,
+                    result[(prefix,) + name].update(scores)
+                    result[(general_prefix,) + name].update(scores)
 
     return result
 
@@ -190,16 +242,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("schema_xml")
     parser.add_argument("reference_dir")
-    parser.add_argument("predicted_dir")
+    parser.add_argument("predicted_dir", nargs="?")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--include", nargs="+", type=split_tuple_on_colons)
     parser.add_argument("--exclude", nargs="+", type=split_tuple_on_colons)
+    parser.add_argument("--xml-name-regex", default="[.]xml$")
     args = parser.parse_args()
     basic_config_kwargs = {"format": "%(levelname)s:%(message)s"}
     if args.debug:
         basic_config_kwargs["level"] = logging.DEBUG
     logging.basicConfig(**basic_config_kwargs)
 
-    _print_scores(score_dirs(
-        anafora.validate.Schema.from_file(args.schema_xml),
-        args.reference_dir, args.predicted_dir, args.include, args.exclude))
+    _schema = anafora.validate.Schema.from_file(args.schema_xml)
+    if args.predicted_dir is not None:
+        _print_scores(score_dirs(
+            _schema, args.reference_dir, args.predicted_dir, args.include, args.exclude))
+    else:
+        _print_scores(score_annotators(
+            _schema, args.reference_dir, args.xml_name_regex, args.include, args.exclude))
