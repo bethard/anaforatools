@@ -21,6 +21,9 @@ def to_anafora_data(timeml_path):
     }
     relation_id_attrs = {
         "MAKEINSTANCE": "eiid",
+        "TLINK": "lid",
+        "SLINK": "lid",
+        "ALINK": "lid",
     }
     data = anafora.AnaforaData()
     offset = 0

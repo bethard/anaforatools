@@ -121,11 +121,17 @@ def test_to_anafora_data(tmpdir):
 
     text = anafora.timeml.to_text(str(path))
     data = anafora.timeml.to_anafora_data(str(path))
+
+    # check counts of various annotations
     assert len(list(data.annotations.select_type("EVENT"))) == 21
     assert len(list(data.annotations.select_type("TIMEX3"))) == 6
     assert len(list(data.annotations.select_type("SIGNAL"))) == 2
+    assert len(list(data.annotations.select_type("TLINK"))) == 26
+    assert len(list(data.annotations.select_type("SLINK"))) == 8
+    assert len(list(data.annotations.select_type("ALINK"))) == 1
 
-    # TIMEX3 t0
+    # <TIMEX3 tid="t0" type="TIME" functionInDocument="CREATION_TIME" temporalFunction="false"
+    #         value="1998-12-05T09:42:00">12/05/1998 09:42:00</TIMEX3>
     annotation = data.annotations.select_id("t0")
     for start, end in annotation.spans:
         assert text[start:end] == "12/05/1998 09:42:00"
@@ -138,8 +144,22 @@ def test_to_anafora_data(tmpdir):
         "value": "1998-12-05T09:42:00",
     }
 
-    # EVENT e8
-    # <EVENT eid="e8" class="I_STATE">
+    # <TIMEX3 tid="t3" type="DATE" functionInDocument="NONE" temporalFunction="true" value="1998-W49"
+    #         anchorTimeID="t0">early this week</TIMEX3>
+    annotation = data.annotations.select_id("t3")
+    for start, end in annotation.spans:
+        assert text[start:end] == "early this week"
+    pattern = "^<entity><id>t3</id><type>TIMEX3</type><span>.*?</span><properties>.*?</properties></entity>$"
+    assert re.match(pattern, str(annotation))
+    assert dict(annotation.properties.items()) == {
+        "type": "DATE",
+        "functionInDocument": "NONE",
+        "temporalFunction": "true",
+        "value": "1998-W49",
+        "anchorTimeID": data.annotations.select_id("t0"),
+    }
+
+    # <EVENT eid="e8" class="I_STATE">expected</EVENT>
     annotation = data.annotations.select_id("e8")
     for start, end in annotation.spans:
         assert text[start:end] == "expected"
@@ -147,8 +167,7 @@ def test_to_anafora_data(tmpdir):
     assert re.match(pattern, str(annotation))
     assert dict(annotation.properties.items()) == {"class": "I_STATE"}
 
-    # SIGNAL s3
-    #<SIGNAL sid="s3">in
+    # <SIGNAL sid="s3">in</SIGNAL>
     annotation = data.annotations.select_id("s3")
     for start, end in annotation.spans:
         assert text[start:end] == "in"
@@ -156,7 +175,6 @@ def test_to_anafora_data(tmpdir):
     assert re.match(pattern, str(annotation))
     assert not annotation.properties.items()
 
-    # MAKEINSTANCE ei23
     # <MAKEINSTANCE eiid="ei23" eventID="e21" tense="PRESENT" aspect="PERFECTIVE" pos="UNKNOWN" polarity="POS"/>
     annotation = data.annotations.select_id("ei23")
     pattern = "^<relation><id>ei23</id><type>MAKEINSTANCE</type><properties>.*?</properties></relation>"
@@ -168,8 +186,49 @@ def test_to_anafora_data(tmpdir):
         "pos": "UNKNOWN",
         "polarity": "POS",
     }
+    assert dict(annotation.properties["eventID"].properties.items()) == {"class": "STATE"}
 
+    # <TLINK lid="l9" timeID="t3" relatedToEventInstance="ei5" relType="INCLUDES" origin="USER"/>
+    annotation = data.annotations.select_id("l9")
+    pattern = "^<relation><id>l9</id><type>TLINK</type><properties>.*?</properties></relation>"
+    assert re.match(pattern, str(annotation))
+    assert dict(annotation.properties.items()) == {
+        "timeID": data.annotations.select_id("t3"),
+        "relatedToEventInstance": data.annotations.select_id("ei5"),
+        "relType": "INCLUDES",
+        "origin": "USER",
+    }
+    assert dict(annotation.properties["timeID"].properties.items()) == {
+        "type": "DATE",
+        "functionInDocument": "NONE",
+        "temporalFunction": "true",
+        "value": "1998-W49",
+        "anchorTimeID": data.annotations.select_id("t0"),
+    }
+    assert dict(annotation.properties["relatedToEventInstance"].properties.items()) == {
+        "eventID": data.annotations.select_id("e5"),
+        "tense": "PAST",
+        "aspect": "NONE",
+        "pos": "UNKNOWN",
+        "polarity": "POS",
+    }
 
+    # <SLINK lid="l37" eventInstanceID="ei24" subordinatedEventInstance="ei25" relType="EVIDENTIAL"/>
+    annotation = data.annotations.select_id("l37")
+    pattern = "^<relation><id>l37</id><type>SLINK</type><properties>.*?</properties></relation>"
+    assert re.match(pattern, str(annotation))
+    assert dict(annotation.properties.items()) == {
+        "eventInstanceID": data.annotations.select_id("ei24"),
+        "subordinatedEventInstance": data.annotations.select_id("ei25"),
+        "relType": "EVIDENTIAL",
+    }
 
-    # 26 tlinks, 8 slinks, 1 alink
-    #assert len(list(data.relations)) == 35
+    # <ALINK lid="l22" eventInstanceID="ei18" relatedToEventInstance="ei17" relType="CULMINATES"/>
+    annotation = data.annotations.select_id("l22")
+    pattern = "^<relation><id>l22</id><type>ALINK</type><properties>.*?</properties></relation>"
+    assert re.match(pattern, str(annotation))
+    assert dict(annotation.properties.items()) == {
+        "eventInstanceID": data.annotations.select_id("ei18"),
+        "relatedToEventInstance": data.annotations.select_id("ei17"),
+        "relType": "CULMINATES",
+    }
