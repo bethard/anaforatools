@@ -67,14 +67,6 @@ class AnaforaData(_XMLWrapper):
     def from_file(cls, xml_path):
         return cls(ElementTree.parse(xml_path).getroot())
 
-    @property
-    def entities(self):
-        return itertools.ifilter(lambda ann: isinstance(ann, AnaforaEntity), self.annotations)
-
-    @property
-    def relations(self):
-        return itertools.ifilter(lambda ann: isinstance(ann, AnaforaRelation), self.annotations)
-
 
 class AnaforaAnnotations(_XMLWrapper):
     def __init__(self, xml, _data):
@@ -93,9 +85,6 @@ class AnaforaAnnotations(_XMLWrapper):
 
     def __iter__(self):
         return iter(self._id_to_annotation.values())
-
-    def __getitem__(self, id):
-        return self._id_to_annotation[id]
 
     def append(self, annotation):
         """
@@ -117,6 +106,12 @@ class AnaforaAnnotations(_XMLWrapper):
             raise ValueError("no id defined for {0}".format(annotation))
         self.xml.remove(annotation.xml)
         del self._id_to_annotation[annotation.id]
+
+    def select_id(self, id):
+        return self._id_to_annotation[id]
+
+    def select_type(self, type_name):
+        return itertools.ifilter(lambda a: a.type == type_name, self)
 
 
 class AnaforaAnnotation(_XMLWrapper):

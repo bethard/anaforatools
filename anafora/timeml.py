@@ -35,7 +35,7 @@ def to_anafora_data(timeml_path):
                         entity.properties[name] = value
                 data.annotations.append(entity)
             elif event == "end":
-                entity = data.annotations[entity_id]
+                entity = data.annotations.select_id(entity_id)
                 (start, _), = entity.spans
                 entity.spans = ((start, offset),)
 

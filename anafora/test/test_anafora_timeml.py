@@ -121,11 +121,12 @@ def test_to_anafora_data(tmpdir):
 
     text = anafora.timeml.to_text(str(path))
     data = anafora.timeml.to_anafora_data(str(path))
-    # 21 events, 6 times, 2 signals
-    assert len(list(data.entities)) == 29
+    assert len(list(data.annotations.select_type("EVENT"))) == 21
+    assert len(list(data.annotations.select_type("TIMEX3"))) == 6
+    assert len(list(data.annotations.select_type("SIGNAL"))) == 2
 
     # TIMEX3 t0
-    annotation = data.annotations["t0"]
+    annotation = data.annotations.select_id("t0")
     for start, end in annotation.spans:
         assert text[start:end] == "12/05/1998 09:42:00"
     pattern = "^<entity><id>t0</id><type>TIMEX3</type><span>20,39</span><properties>.*?</properties></entity>$"
@@ -136,7 +137,7 @@ def test_to_anafora_data(tmpdir):
 
     # EVENT e8
     # <EVENT eid="e8" class="I_STATE">
-    annotation = data.annotations["e8"]
+    annotation = data.annotations.select_id("e8")
     for start, end in annotation.spans:
         assert text[start:end] == "expected"
     pattern = "^<entity><id>e8</id><type>EVENT</type><span>.*?</span><properties>.*?</properties></entity>$"

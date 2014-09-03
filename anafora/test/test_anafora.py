@@ -6,13 +6,9 @@ import anafora
 def test_empty():
     data = anafora.AnaforaData(anafora.ElementTree.fromstring('<data/>'))
     assert list(data.annotations) == []
-    assert list(data.entities) == []
-    assert list(data.relations) == []
 
     data = anafora.AnaforaData(anafora.ElementTree.fromstring('<data><annotations></annotations></data>'))
     assert list(data.annotations) == []
-    assert list(data.entities) == []
-    assert list(data.relations) == []
 
 
 def test_add_entity():
