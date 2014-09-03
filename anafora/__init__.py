@@ -94,6 +94,9 @@ class AnaforaAnnotations(_XMLWrapper):
     def __iter__(self):
         return iter(self._id_to_annotation.values())
 
+    def __getitem__(self, id):
+        return self._id_to_annotation[id]
+
     def append(self, annotation):
         """
         :param AnaforaAnnotation annotation: the annotation to add
@@ -220,10 +223,20 @@ class AnaforaEntity(AnaforaAnnotation):
 
     @property
     def spans(self):
-        span_elem = self.xml.findtext("span")
-        if span_elem is None:
+        spans_text = self.xml.findtext("span")
+        if spans_text is None:
             return ()
-        return tuple(int(offset) for span_text in span_elem.split(";") for offset in tuple(span_text.split(",")))
+        return tuple(tuple(int(offset) for offset in tuple(span_text.split(",")))
+                     for span_text in spans_text.split(";"))
+
+    @spans.setter
+    def spans(self, spans):
+        if not isinstance(spans, tuple) or not all(isinstance(span, tuple) and len(span) == 2 for span in spans):
+            raise ValueError("spans must be a tuple of pairs")
+        span_elem = self.xml.find("span")
+        if span_elem is None:
+            span_elem = ElementTree.SubElement(self.xml, "span")
+        span_elem.text = ";".join("{0:d},{1:d}".format(*span) for span in spans)
 
 
 class AnaforaRelation(AnaforaAnnotation):
