@@ -63,6 +63,7 @@ def to_anafora_data(timeml_path):
             offset += len(elem.tail)
     return data
 
+
 # http://effbot.org/zone/element-lib.htm#prettyprint
 def _indent(elem, level=0):
     i = "\n" + level * "  "
@@ -78,6 +79,7 @@ def _indent(elem, level=0):
     else:
         if level and (not elem.tail or not elem.tail.strip()):
             elem.tail = i
+
 
 def _timeml_dir_to_anafora_dir(timeml_dir, anafora_dir):
     for root, _, file_names in os.walk(timeml_dir):
