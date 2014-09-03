@@ -78,3 +78,16 @@ def test_remove():
     assert list(data.annotations) == []
     assert str(data) == '<data><annotations /></data>'
 
+
+
+def test_recursive_entity():
+    data = anafora.AnaforaData()
+    entity1 = anafora.AnaforaEntity()
+    entity1.id = "@1@"
+    data.annotations.append(entity1)
+    entity1.properties["self"] = entity1
+    entity2 = anafora.AnaforaEntity()
+    entity2.id = "@2@"
+    data.annotations.append(entity2)
+    entity2.properties["self"] = entity2
+    assert hash(entity1) == hash(entity2)

@@ -42,15 +42,21 @@ class _XMLWrapper(object):
         return isinstance(other, _XMLWrapper) and self._key() != other._key()
 
     def __hash__(self):
-        def _hash(obj):
+        seen_ids = set()
+        def _to_frozensets(obj):
+            if id(obj) in seen_ids:
+                return None
+            seen_ids.add(id(obj))
             if isinstance(obj, (set, tuple, list)):
-                return hash(frozenset(_hash(item) for item in obj))
+                return frozenset(_to_frozensets(item) for item in obj)
             elif isinstance(obj, dict):
-                return hash(frozenset(_hash(item) for item in obj.items()))
+                return frozenset(_to_frozensets(item) for item in obj.items())
+            elif isinstance(obj, _XMLWrapper):
+                return frozenset(_to_frozensets(item) for item in obj._key())
             else:
-                return hash(obj)
+                return obj
 
-        return _hash(self._key())
+        return hash(_to_frozensets(self))
 
 
 class AnaforaData(_XMLWrapper):
@@ -175,7 +181,7 @@ class AnaforaProperties(_XMLWrapper):
                 self._tag_to_property_xml[property_elem.tag] = property_elem
 
     def _key(self):
-        return frozenset(self.items())
+        return self.items()
 
     def __iter__(self):
         return iter(self._tag_to_property_xml)
