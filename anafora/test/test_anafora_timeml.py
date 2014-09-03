@@ -131,9 +131,12 @@ def test_to_anafora_data(tmpdir):
         assert text[start:end] == "12/05/1998 09:42:00"
     pattern = "^<entity><id>t0</id><type>TIMEX3</type><span>20,39</span><properties>.*?</properties></entity>$"
     assert re.match(pattern, str(annotation))
-    properties = {"type": "TIME", "functionInDocument": "CREATION_TIME",
-                  "temporalFunction": "false", "value": "1998-12-05T09:42:00"}
-    assert {key: value for key, value in annotation.properties.items()} == properties
+    assert dict(annotation.properties.items()) == {
+        "type": "TIME",
+        "functionInDocument": "CREATION_TIME",
+        "temporalFunction": "false",
+        "value": "1998-12-05T09:42:00",
+    }
 
     # EVENT e8
     # <EVENT eid="e8" class="I_STATE">
@@ -142,8 +145,7 @@ def test_to_anafora_data(tmpdir):
         assert text[start:end] == "expected"
     pattern = "^<entity><id>e8</id><type>EVENT</type><span>.*?</span><properties>.*?</properties></entity>$"
     assert re.match(pattern, str(annotation))
-    properties = {"class": "I_STATE"}
-    assert {key: value for key, value in annotation.properties.items()} == properties
+    assert dict(annotation.properties.items()) == {"class": "I_STATE"}
 
     # SIGNAL s3
     #<SIGNAL sid="s3">in
@@ -153,6 +155,21 @@ def test_to_anafora_data(tmpdir):
     pattern = "^<entity><id>s3</id><type>SIGNAL</type><span>.*?</span></entity>$"
     assert re.match(pattern, str(annotation))
     assert not annotation.properties.items()
+
+    # MAKEINSTANCE ei23
+    # <MAKEINSTANCE eiid="ei23" eventID="e21" tense="PRESENT" aspect="PERFECTIVE" pos="UNKNOWN" polarity="POS"/>
+    annotation = data.annotations.select_id("ei23")
+    pattern = "^<relation><id>ei23</id><type>MAKEINSTANCE</type><properties>.*?</properties></relation>"
+    assert re.match(pattern, str(annotation))
+    assert dict(annotation.properties.items()) == {
+        "eventID": data.annotations.select_id("e21"),
+        "tense": "PRESENT",
+        "aspect": "PERFECTIVE",
+        "pos": "UNKNOWN",
+        "polarity": "POS",
+    }
+
+
 
     # 26 tlinks, 8 slinks, 1 alink
     #assert len(list(data.relations)) == 35

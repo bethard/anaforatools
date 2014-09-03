@@ -19,33 +19,37 @@ def to_anafora_data(timeml_path):
         "EVENT": "eid",
         "SIGNAL": "sid",
     }
+    relation_id_attrs = {
+        "MAKEINSTANCE": "eiid",
+    }
     data = anafora.AnaforaData()
     offset = 0
     for event, elem in anafora.ElementTree.iterparse(timeml_path, events=("start", "end")):
-        if elem.tag in entity_id_attrs:
-            id_attr = entity_id_attrs[elem.tag]
-            entity_id = elem.attrib[id_attr]
-            if event == "start":
-                entity = anafora.AnaforaEntity()
-                entity.id = entity_id
-                entity.type = elem.tag
-                entity.spans = ((offset, offset),)
+        if event == "start":
+            annotation = None
+            if elem.tag in entity_id_attrs:
+                id_attrs = entity_id_attrs
+                annotation = anafora.AnaforaEntity()
+            elif elem.tag in relation_id_attrs:
+                id_attrs = relation_id_attrs
+                annotation = anafora.AnaforaRelation()
+
+            if annotation is not None:
+                id_attr = id_attrs[elem.tag]
+                annotation.id = elem.attrib[id_attr]
+                annotation.type = elem.tag
+                if elem.tag in entity_id_attrs:
+                    annotation.spans = ((offset, offset),)
                 for name, value in elem.attrib.items():
                     if name != id_attr:
-                        entity.properties[name] = value
-                data.annotations.append(entity)
-            elif event == "end":
-                entity = data.annotations.select_id(entity_id)
-                (start, _), = entity.spans
-                entity.spans = ((start, offset),)
+                        annotation.properties[name] = value
+                data.annotations.append(annotation)
 
-        # TODO: handle MAKEINSTANCE
-        # if elem.tag == "MAKEINSTANCE":
-        #     eiid = elem.attrib["eiid"]
-        #     entity = data.annotations[elem.attrib["eventID"]]
-        #     for name, value in elem.attrib.items():
-        #         if name != "eiid" and name != "eventID":
-        #             entity.properties[name] = value
+        elif event == "end" and elem.tag in entity_id_attrs:
+            annotation_id = elem.attrib[entity_id_attrs[elem.tag]]
+            annotation = data.annotations.select_id(annotation_id)
+            (start, _), = annotation.spans
+            annotation.spans = ((start, offset),)
 
         if event == "start" and elem.text is not None:
             offset += len(elem.text)
