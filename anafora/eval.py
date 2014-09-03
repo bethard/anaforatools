@@ -2,6 +2,7 @@ __author__ = 'bethard'
 
 import argparse
 import collections
+import glob
 import logging
 import os
 import re
@@ -57,7 +58,7 @@ def _group_by(reference_iterable, predicted_iterable, key_function):
     return result
 
 
-def score_data(reference_data, predicted_data, include=None, exclude=None, xml_name=None):
+def score_data(reference_data, predicted_data, include=None, exclude=None, file_name=None):
     """
     :param AnaforaData reference_data: reference ("gold standard") Anafora data
     :param AnaforaData predicted_data: predicted (system-generated) Anafora data
@@ -65,7 +66,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
         (type-name, property-name) tuples, (type-name, property-name, property-value) tuples
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
         (type-name, property-name, property-value) tuples
-    :param string xml_name: name of the Anafora XML file being compared (used only for logging purposes)
+    :param string file_name: name of the text file being compared (used only for logging purposes)
     :return dict: mapping of (annotation type, property) to Scores object
     """
     def _accept(type_name, prop_name=None, prop_value=None):
@@ -106,9 +107,9 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, xml_n
             missed, added = result[ann_type].add(reference_annotations, predicted_annotations)
             if predicted_data is not None:
                 for annotation in missed:
-                    logging.debug("Missed%s:\n%s", " in " + xml_name if xml_name else "", str(annotation).rstrip())
+                    logging.debug("Missed%s:\n%s", " in " + file_name if file_name else "", str(annotation).rstrip())
                 for annotation in added:
-                    logging.debug("Added%s:\n%s", " in " + xml_name if xml_name else "", str(annotation).rstrip())
+                    logging.debug("Added%s:\n%s", " in " + file_name if file_name else "", str(annotation).rstrip())
 
         prop_groups = _group_by(_props(reference_annotations), _props(predicted_annotations), lambda t: t[1])
         for name in sorted(prop_groups):
@@ -150,17 +151,27 @@ def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None)
     """
     result = collections.defaultdict(lambda: Scores())
 
-    for _, sub_dir, xml_names in anafora.walk(reference_dir):
-        for xml_name in xml_names:
-            reference_xml_path = os.path.join(reference_dir, sub_dir, xml_name)
-            predicted_xml_path = os.path.join(predicted_dir, sub_dir, xml_name)
+    for _, sub_dir, reference_xml_names in anafora.walk(reference_dir):
+        try:
+            [reference_xml_name] = reference_xml_names
+        except ValueError:
+            logging.warn("multiple reference files: %s", reference_xml_names)
+            reference_xml_name = reference_xml_names[0]
+        reference_xml_path = os.path.join(reference_dir, sub_dir, reference_xml_name)
 
-            reference_data = _load_and_remove_errors(schema, reference_xml_path)
-            predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
+        predicted_xml_paths = glob.glob(os.path.join(predicted_dir, sub_dir, sub_dir + "*.xml"))
+        try:
+            [predicted_xml_path] = predicted_xml_paths
+        except ValueError:
+            logging.warn("multiple predicted files: %s", predicted_xml_paths)
+            predicted_xml_path = predicted_xml_paths[0]
 
-            named_scores = score_data(reference_data, predicted_data, include, exclude, xml_name)
-            for name, scores in named_scores.items():
-                result[name].update(scores)
+        reference_data = _load_and_remove_errors(schema, reference_xml_path)
+        predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
+
+        named_scores = score_data(reference_data, predicted_data, include, exclude, sub_dir)
+        for name, scores in named_scores.items():
+            result[name].update(scores)
 
     return result
 
