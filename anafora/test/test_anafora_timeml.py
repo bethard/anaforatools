@@ -142,8 +142,17 @@ def test_to_anafora_data(tmpdir):
         assert text[start:end] == "expected"
     pattern = "^<entity><id>e8</id><type>EVENT</type><span>.*?</span><properties>.*?</properties></entity>$"
     assert re.match(pattern, str(annotation))
-    #properties = {"class": "I_STATE", "tense": "PRESENT", "aspect": "NONE", "pos": "UNKNOWN", "polarity": "POS"}
-    #assert {key: value for key, value in annotation.properties.items()} == properties
+    properties = {"class": "I_STATE"}
+    assert {key: value for key, value in annotation.properties.items()} == properties
+
+    # SIGNAL s3
+    #<SIGNAL sid="s3">in
+    annotation = data.annotations.select_id("s3")
+    for start, end in annotation.spans:
+        assert text[start:end] == "in"
+    pattern = "^<entity><id>s3</id><type>SIGNAL</type><span>.*?</span></entity>$"
+    assert re.match(pattern, str(annotation))
+    assert not annotation.properties.items()
 
     # 26 tlinks, 8 slinks, 1 alink
     #assert len(list(data.relations)) == 35
