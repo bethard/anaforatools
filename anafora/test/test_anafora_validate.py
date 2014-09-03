@@ -62,3 +62,5 @@ def test_schema_validate():
     assert schema.errors(data) != []
     relation.properties["E"] = entity2
     assert schema.errors(data) == []
+    relation.properties["X"] = "Y"
+    assert schema.errors(data) != []

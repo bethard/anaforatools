@@ -63,6 +63,8 @@ class Schema(object):
             if schema_property.required and not schema_property.type in annotation.properties:
                 return 'missing required property "{0}"'.format(schema_property.type)
         for name, value in annotation.properties.items():
+            if name not in schema_properties:
+                return 'invalid property name "{0}"'.format(name)
             schema_property = schema_properties[name]
             if schema_property.instance_of is not None:
                 if not isinstance(value, anafora.AnaforaAnnotation):
