@@ -19,8 +19,9 @@ class Schema(object):
             raise ValueError("no entities or relations in schema")
 
         self.default_attributes = {}
-        for attribute_elem in default_attribute_elem:
-            self.default_attributes[attribute_elem.tag] = attribute_elem.text
+        if default_attribute_elem is not None:
+            for attribute_elem in default_attribute_elem:
+                self.default_attributes[attribute_elem.tag] = attribute_elem.text
 
         self.type_to_properties = {}
         for annotations_elem in [entities_elem, relations_elem]:
@@ -64,7 +65,7 @@ class Schema(object):
                 return 'missing required property "{0}"'.format(schema_property.type)
         for name, value in annotation.properties.items():
             if name not in schema_properties:
-                return 'invalid property name "{0}"'.format(name)
+                return 'no property "{0}" defined for type "{1}"'.format(name, annotation.type)
             schema_property = schema_properties[name]
             if schema_property.instance_of is not None:
                 if not isinstance(value, anafora.AnaforaAnnotation):
