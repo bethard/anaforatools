@@ -131,7 +131,7 @@ class AnaforaAnnotation(_XMLWrapper):
         self.properties = AnaforaProperties(self.xml.find("properties"), self)
 
     def _key(self):
-        return self.type, self.parents_type, self.properties
+        return self.spans, self.type, self.parents_type, self.properties
 
     @property
     def id(self):
@@ -165,6 +165,10 @@ class AnaforaAnnotation(_XMLWrapper):
         if parents_type_elem is None:
             parents_type_elem = ElementTree.SubElement(self.xml, "parentsType")
         parents_type_elem.text = value
+
+    @property
+    def spans(self):
+        raise NotImplementedError
 
 
 class AnaforaProperties(_XMLWrapper):
@@ -219,9 +223,6 @@ class AnaforaEntity(AnaforaAnnotation):
             xml = ElementTree.Element("entity")
         AnaforaAnnotation.__init__(self, xml, _annotations)
 
-    def _key(self):
-        return (self.spans,) + AnaforaAnnotation._key(self)
-
     @property
     def spans(self):
         spans_text = self.xml.findtext("span")
@@ -248,6 +249,8 @@ class AnaforaRelation(AnaforaAnnotation):
 
     @property
     def spans(self):
-        return tuple(self.properties[name].spans
-                     for name in sorted(self.properties)
-                     if isinstance(self.properties[name], AnaforaEntity))
+        return tuple(sorted(
+            span
+            for name in sorted(self.properties)
+            if isinstance(self.properties[name], AnaforaEntity)
+            for span in self.properties[name].spans))
