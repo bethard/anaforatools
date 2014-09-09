@@ -42,21 +42,23 @@ class _XMLWrapper(object):
         return isinstance(other, _XMLWrapper) and self._key() != other._key()
 
     def __hash__(self):
-        seen_ids = set()
-        def _to_frozensets(obj):
-            if id(obj) in seen_ids:
-                return None
-            seen_ids.add(id(obj))
-            if isinstance(obj, (set, tuple, list)):
-                return frozenset(_to_frozensets(item) for item in obj)
-            elif isinstance(obj, dict):
-                return frozenset(_to_frozensets(item) for item in obj.items())
-            elif isinstance(obj, _XMLWrapper):
-                return frozenset(_to_frozensets(item) for item in obj._key())
-            else:
-                return obj
-
         return hash(_to_frozensets(self))
+
+
+def _to_frozensets(obj, seen_ids=None):
+    if seen_ids is None:
+        seen_ids = set()
+    if id(obj) in seen_ids:
+        return None
+    seen_ids.add(id(obj))
+    if isinstance(obj, (set, tuple, list)):
+        return frozenset(_to_frozensets(item, seen_ids) for item in obj)
+    elif isinstance(obj, dict):
+        return frozenset(_to_frozensets(item, seen_ids) for item in obj.items())
+    elif hasattr(obj, "_key"):
+        return frozenset(_to_frozensets(item, seen_ids) for item in obj._key())
+    else:
+        return obj
 
 
 class AnaforaData(_XMLWrapper):
@@ -249,8 +251,7 @@ class AnaforaRelation(AnaforaAnnotation):
 
     @property
     def spans(self):
-        return tuple(sorted(
-            span
+        return tuple(
+            self.properties[name].spans
             for name in sorted(self.properties)
-            if isinstance(self.properties[name], AnaforaEntity)
-            for span in self.properties[name].spans))
+            if isinstance(self.properties[name], AnaforaEntity))
