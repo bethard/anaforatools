@@ -1,4 +1,5 @@
 import collections
+import functools
 import itertools
 import os
 import re
@@ -22,6 +23,7 @@ def walk(anafora_dir, xml_name_regex="[.]xml$"):
             yield anafora_dir, subdir, xml_names
 
 
+@functools.total_ordering
 class _XMLWrapper(object):
     def __init__(self, xml):
         """
@@ -43,6 +45,9 @@ class _XMLWrapper(object):
 
     def __hash__(self):
         return hash(_to_frozensets(self))
+
+    def __lt__(self, other):
+        return self._key() < other._key()
 
 
 def _to_frozensets(obj, seen_ids=None):

@@ -2,6 +2,7 @@ __author__ = 'bethard'
 
 import argparse
 import collections
+import functools
 import glob
 import logging
 import os
@@ -26,7 +27,6 @@ class Scores(object):
         self.reference += len(reference)
         self.predicted += len(predicted)
         self.correct += len(reference & predicted)
-        return reference - predicted, predicted - reference
 
     def update(self, other):
         self.reference += other.reference
@@ -48,6 +48,26 @@ class Scores(object):
         return "{0}(reference={1}, predicted={2}, correct={3})".format(
             self.__class__.__name__, self.reference, self.predicted, self.correct
         )
+
+
+class DebuggingScores(Scores):
+    def __init__(self):
+        Scores.__init__(self)
+        self.errors = []
+
+    def add(self, reference, predicted):
+        Scores.add(self, reference, predicted)
+        errors = []
+        for item in reference - predicted:
+            errors.append((item, "not in predicted"))
+        for item in predicted - reference:
+            errors.append((item, "not in reference"))
+        errors.sort()
+        self.errors.extend(errors)
+
+    def update(self, other):
+        Scores.update(self, other)
+        self.errors.extend(other.errors)
 
 
 class _OverlappingWrapper(object):
@@ -82,10 +102,13 @@ class _OverlappingWrapper(object):
     def __repr__(self):
         return "{0}({1})".format(self.__class__.__name__, self.annotation)
 
-
+@functools.total_ordering
 class _OverlappingSpans(object):
     def __init__(self, spans):
         self.spans = spans
+
+    def __iter__(self):
+        return iter(self.spans)
 
     def __eq__(self, other):
         for self_start, self_end in self.spans:
@@ -96,6 +119,9 @@ class _OverlappingSpans(object):
 
     def __hash__(self):
         return 0
+
+    def __lt__(self, other):
+        return self.spans < other.spans
 
     def __repr__(self):
         return "{0}({1})".format(self.__class__.__name__, self.spans)
@@ -109,7 +135,8 @@ def _group_by(reference_iterable, predicted_iterable, key_function):
     return result
 
 
-def score_data(reference_data, predicted_data, include=None, exclude=None, annotation_wrapper=None, file_name=None):
+def score_data(reference_data, predicted_data, include=None, exclude=None,
+               scores_type=Scores, annotation_wrapper=None):
     """
     :param AnaforaData reference_data: reference ("gold standard") Anafora data
     :param AnaforaData predicted_data: predicted (system-generated) Anafora data
@@ -117,8 +144,8 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, annot
         (type-name, property-name) tuples, (type-name, property-name, property-value) tuples
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
         (type-name, property-name, property-value) tuples
-    :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
-    :param string file_name: name of the text file being compared (used only for logging purposes)
+    :param type scores_type: type for calculating matches between predictions and reference
+    :param type annotation_wrapper: wrapper type to apply to AnaforaAnnotations
     :return dict: mapping of (annotation type, property) to Scores object
     """
     def _accept(type_name, prop_name=None, prop_value=None):
@@ -136,21 +163,23 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, annot
                 return False
         return True
 
+    AnnotationView = collections.namedtuple("AnnotationView", ["spans", "name", "value"])
+
     def _props(annotations):
         props = set()
         for ann in annotations:
             spans = ann.spans
             if _accept(ann.type, "<span>"):
-                props.add((spans, (ann.type, "<span>")))
+                props.add(AnnotationView(spans, (ann.type, "<span>"), None))
             for prop_name in ann.properties:
                 prop_value = ann.properties[prop_name]
                 if _accept(ann.type, prop_name):
-                    props.add((spans, (ann.type, prop_name), prop_value))
+                    props.add(AnnotationView(spans, (ann.type, prop_name), prop_value))
                 if _accept(ann.type, prop_name, prop_value) and isinstance(prop_value, basestring):
-                    props.add((spans, (ann.type, prop_name, prop_value), prop_value))
+                    props.add(AnnotationView(spans, (ann.type, prop_name, prop_value), prop_value))
         return props
 
-    result = collections.defaultdict(lambda: Scores())
+    result = collections.defaultdict(lambda: scores_type())
     reference_annotations = reference_data.annotations
     predicted_annotations = [] if predicted_data is None else predicted_data.annotations
     if annotation_wrapper is not None:
@@ -160,12 +189,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None, annot
     for ann_type in sorted(groups):
         reference_annotations, predicted_annotations = groups[ann_type]
         if _accept(ann_type):
-            missed, added = result[ann_type].add(reference_annotations, predicted_annotations)
-            if predicted_data is not None:
-                for annotation in missed:
-                    logging.debug("Missed%s:\n%s", " in " + file_name if file_name else "", str(annotation).rstrip())
-                for annotation in added:
-                    logging.debug("Added%s:\n%s", " in " + file_name if file_name else "", str(annotation).rstrip())
+            result[ann_type].add(reference_annotations, predicted_annotations)
 
         prop_groups = _group_by(_props(reference_annotations), _props(predicted_annotations), lambda t: t[1])
         for name in sorted(prop_groups):
@@ -194,7 +218,8 @@ def _load_and_remove_errors(schema, xml_path):
         return data
 
 
-def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None, annotation_wrapper=None):
+def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None,
+               scores_type=Scores, annotation_wrapper=None):
     """
     :param schema: Anafora schema against which Anafora XML should be valdiated
     :param string reference_dir: directory containing reference ("gold standard") Anafora XML directories
@@ -203,10 +228,11 @@ def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None,
         (type-name, property-name) tuples, (type-name, property-name, property-value) tuples
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
         (type-name, property-name, property-value) tuples
+    :param type scores_type: type for calculating matches between predictions and reference
     :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
     :return dict: mapping of (annotation type, property) to Scores object
     """
-    result = collections.defaultdict(lambda: Scores())
+    result = collections.defaultdict(lambda: scores_type())
 
     for _, sub_dir, reference_xml_names in anafora.walk(reference_dir):
         try:
@@ -223,18 +249,27 @@ def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None,
             logging.warn("multiple predicted files: %s", predicted_xml_paths)
             predicted_xml_path = predicted_xml_paths[0]
 
+        with open(os.path.join(reference_dir, sub_dir, sub_dir)) as text_file:
+            text = text_file.read()
+
+        def _span_text(spans):
+            return "...".join(text[start:end] for start, end in spans)
+
         reference_data = _load_and_remove_errors(schema, reference_xml_path)
         predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
 
         named_scores = score_data(reference_data, predicted_data, include, exclude,
-                                  annotation_wrapper=annotation_wrapper, file_name=sub_dir)
+                                  scores_type=scores_type, annotation_wrapper=annotation_wrapper)
         for name, scores in named_scores.items():
             result[name].update(scores)
+            for annotation, message in getattr(scores, "errors", []):
+                logging.debug('%s: %s: "%s" %s"', sub_dir, message, _span_text(annotation.spans), annotation)
 
     return result
 
 
-def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=None, annotation_wrapper=None):
+def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=None,
+                     scores_type=Scores, annotation_wrapper=None):
     """
     :param schema: Anafora schema against which Anafora XML should be valdiated
     :param anafora_dir: directory containing Anafora XML directories
@@ -243,10 +278,11 @@ def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=
         (type-name, property-name) tuples, (type-name, property-name, property-value) tuples
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
         (type-name, property-name, property-value) tuples
+    :param type scores_type: type for calculating matches between predictions and reference
     :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
     :return dict: mapping of (annotation type, property) to Scores object
     """
-    result = collections.defaultdict(lambda: Scores())
+    result = collections.defaultdict(lambda: scores_type())
 
     annotator_name_regex = "([^.]*)[.][^.]*[.]xml$"
 
@@ -277,7 +313,7 @@ def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=
                 general_prefix = make_prefix(
                     a if a == "gold" else "annotator" for a in [annotator1, annotator2])
                 named_scores = score_data(data1, data2, include, exclude,
-                                          annotation_wrapper=annotation_wrapper, file_name=sub_dir)
+                                          scores_type=scores_type, annotation_wrapper=annotation_wrapper)
                 for name, scores in named_scores.items():
                     if not isinstance(name, tuple):
                         name = name,
@@ -326,15 +362,18 @@ if __name__ == "__main__":
     logging.basicConfig(**basic_config_kwargs)
 
     _schema = anafora.validate.Schema.from_file(args.schema_xml)
+    _scores_type = DebuggingScores if args.debug else Scores
     if args.predicted_dir is not None:
         _print_scores(score_dirs(
             _schema, args.reference_dir, args.predicted_dir,
             include=args.include,
             exclude=args.exclude,
+            scores_type=_scores_type,
             annotation_wrapper=args.annotation_wrapper))
     else:
         _print_scores(score_annotators(
             _schema, args.reference_dir, args.xml_name_regex,
             include=args.include,
             exclude=args.exclude,
+            scores_type=_scores_type,
             annotation_wrapper=args.annotation_wrapper))
