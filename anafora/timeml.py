@@ -28,6 +28,7 @@ def to_anafora_data(timeml_path):
         "SLINK": "lid",
         "ALINK": "lid",
     }
+    text = to_text(timeml_path)
     data = anafora.AnaforaData()
     offset = 0
     for event, elem in anafora.ElementTree.iterparse(timeml_path, events=("start", "end")):
@@ -56,6 +57,8 @@ def to_anafora_data(timeml_path):
             annotation = data.annotations.select_id(annotation_id)
             (start, _), = annotation.spans
             annotation.spans = ((start, offset),)
+            if elem.text != text[start:offset]:
+                raise ValueError('{0}: "{1}" != "{2} ({3})"'.format(timeml_path, elem.text, text[start:offset], elem.attrib))
 
         if event == "start" and elem.text is not None:
             offset += len(elem.text)
