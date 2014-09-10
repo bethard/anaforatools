@@ -218,12 +218,13 @@ def _load_and_remove_errors(schema, xml_path):
         return data
 
 
-def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None,
-               scores_type=Scores, annotation_wrapper=None):
+def score_dirs(schema, reference_dir, predicted_dir, text_dir,
+               include=None, exclude=None, scores_type=Scores, annotation_wrapper=None):
     """
     :param schema: Anafora schema against which Anafora XML should be valdiated
     :param string reference_dir: directory containing reference ("gold standard") Anafora XML directories
     :param string predicted_dir: directory containing predicted (system-generated) Anafora XML directories
+    :param string text_dir: directory containing the raw texts corresponding to the Anafora XML
     :param set include: types of annotations to include (others will be excluded); may be type names,
         (type-name, property-name) tuples, (type-name, property-name, property-value) tuples
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
@@ -249,11 +250,19 @@ def score_dirs(schema, reference_dir, predicted_dir, include=None, exclude=None,
             logging.warn("multiple predicted files: %s", predicted_xml_paths)
             predicted_xml_path = predicted_xml_paths[0]
 
-        with open(os.path.join(reference_dir, sub_dir, sub_dir)) as text_file:
-            text = text_file.read()
+        possible_text_paths = [os.path.join(text_dir, sub_dir),
+                               os.path.join(text_dir, sub_dir, sub_dir)]
+        for text_path in possible_text_paths:
+            if os.path.exists(text_path) and os.path.isfile(text_path):
+                with open(text_path) as text_file:
+                    text = text_file.read()
 
-        def _span_text(spans):
-            return "...".join(text[start:end] for start, end in spans)
+                    def _span_text(spans):
+                        return "...".join(text[start:end] for start, end in spans)
+                break
+        else:
+            logging.warn("no text file found in %s", possible_text_paths)
+
 
         reference_data = _load_and_remove_errors(schema, reference_xml_path)
         predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
@@ -347,9 +356,10 @@ if __name__ == "__main__":
         return result[0] if len(result) == 1 else result
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("schema_xml")
-    parser.add_argument("reference_dir")
-    parser.add_argument("predicted_dir", nargs="?")
+    parser.add_argument("--schema", required=True)
+    parser.add_argument("--reference-dir", required=True)
+    parser.add_argument("--predicted-dir")
+    parser.add_argument("--text-dir")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--include", nargs="+", type=split_tuple_on_colons)
     parser.add_argument("--exclude", nargs="+", type=split_tuple_on_colons)
@@ -361,18 +371,24 @@ if __name__ == "__main__":
         basic_config_kwargs["level"] = logging.DEBUG
     logging.basicConfig(**basic_config_kwargs)
 
-    _schema = anafora.validate.Schema.from_file(args.schema_xml)
+    _schema = anafora.validate.Schema.from_file(args.schema)
     _scores_type = DebuggingScores if args.debug else Scores
+    _text_dir = args.text_dir if args.text_dir is not None else args.reference_dir
     if args.predicted_dir is not None:
         _print_scores(score_dirs(
-            _schema, args.reference_dir, args.predicted_dir,
+            schema=_schema,
+            reference_dir=args.reference_dir,
+            predicted_dir=args.predicted_dir,
+            text_dir=_text_dir,
             include=args.include,
             exclude=args.exclude,
             scores_type=_scores_type,
             annotation_wrapper=args.annotation_wrapper))
     else:
         _print_scores(score_annotators(
-            _schema, args.reference_dir, args.xml_name_regex,
+            schema=_schema,
+            anafora_dir=args.reference_dir,
+            xml_name_regex=args.xml_name_regex,
             include=args.include,
             exclude=args.exclude,
             scores_type=_scores_type,
