@@ -25,8 +25,9 @@ def walk(root, xml_name_regex="[.]xml$"):
                 if sub_dir.startswith(os.path.sep):
                     sub_dir = sub_dir[len(os.path.sep):]
             xml_names = [file_name for file_name in file_names if re.search(xml_name_regex, file_name) is not None]
-            text_name = os.path.basename(dir_path)
-            yield sub_dir, text_name, xml_names
+            if xml_names:
+                text_name = os.path.basename(dir_path)
+                yield sub_dir, text_name, xml_names
 
 
 @functools.total_ordering
