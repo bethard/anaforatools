@@ -17,9 +17,8 @@ if __name__ == "__main__":
         lines = [line.rstrip("\r\n") for line in regex_file.readlines()]
         regex = re.compile(r"\b" + r"\b|\b".join(lines) + r"\b", re.IGNORECASE)
 
-    for dir_name in os.listdir(args.input_dir):
-        file_name = dir_name
-        text_path = os.path.join(args.input_dir, dir_name, file_name)
+    for sub_dir, text_name, _ in anafora.walk(args.input_dir):
+        text_path = os.path.join(args.input_dir, sub_dir, text_name)
         with open(text_path) as text_file:
             text = text_file.read().decode(args.encoding)
 
@@ -27,14 +26,14 @@ if __name__ == "__main__":
         for i, match in enumerate(regex.finditer(text.lower())):
             start, end = match.span()
             annotation = anafora.AnaforaEntity()
-            annotation.id = "{0}@{1}".format(i, file_name)
+            annotation.id = "{0}@{1}".format(i, text_name)
             annotation.type = args.entity_type
             annotation.spans = ((start, end),)
             data.annotations.append(annotation)
 
-        output_dir = os.path.join(args.output_dir, file_name)
+        output_dir = os.path.join(args.output_dir, sub_dir)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        output_path = os.path.join(output_dir, file_name + ".xml")
+        output_path = os.path.join(output_dir, text_name + ".xml")
         with open(output_path, 'w') as output_file:
             anafora.ElementTree.ElementTree(data.xml).write(output_file)
