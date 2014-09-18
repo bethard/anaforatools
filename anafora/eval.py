@@ -9,7 +9,6 @@ import os
 import re
 
 import anafora
-import anafora.validate
 
 
 class Scores(object):
@@ -199,7 +198,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
     return result
 
 
-def _load_and_remove_errors(schema, xml_path):
+def _load(xml_path):
     if not os.path.exists(xml_path):
         logging.warn("%s: no such file", xml_path)
         return None
@@ -209,19 +208,12 @@ def _load_and_remove_errors(schema, xml_path):
         logging.warn("%s: ignoring invalid XML", xml_path)
         return None
     else:
-        errors = schema.errors(data)
-        while errors:
-            for annotation, error in errors:
-                logging.warn("%s: removing invalid annotation: %s", xml_path, error)
-                data.annotations.remove(annotation)
-            errors = schema.errors(data)
         return data
 
 
-def score_dirs(schema, reference_dir, predicted_dir, text_dir=None,
+def score_dirs(reference_dir, predicted_dir, text_dir=None,
                include=None, exclude=None, scores_type=Scores, annotation_wrapper=None):
     """
-    :param schema: Anafora schema against which Anafora XML should be valdiated
     :param string reference_dir: directory containing reference ("gold standard") Anafora XML directories
     :param string predicted_dir: directory containing predicted (system-generated) Anafora XML directories
     :param string text_dir: directory containing the raw texts corresponding to the Anafora XML
@@ -264,8 +256,8 @@ def score_dirs(schema, reference_dir, predicted_dir, text_dir=None,
                 def _span_text(spans):
                     return "...".join(text[start:end] for start, end in spans)
 
-        reference_data = _load_and_remove_errors(schema, reference_xml_path)
-        predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
+        reference_data = _load(reference_xml_path)
+        predicted_data = _load(predicted_xml_path)
 
         named_scores = score_data(reference_data, predicted_data, include, exclude,
                                   scores_type=scores_type, annotation_wrapper=annotation_wrapper)
@@ -277,10 +269,9 @@ def score_dirs(schema, reference_dir, predicted_dir, text_dir=None,
     return result
 
 
-def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=None,
+def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
                      scores_type=Scores, annotation_wrapper=None):
     """
-    :param schema: Anafora schema against which Anafora XML should be valdiated
     :param anafora_dir: directory containing Anafora XML directories
     :param xml_name_regex: regular expression matching the annotator files to be compared
     :param include: types of annotations to include (others will be excluded); may be type names,
@@ -311,7 +302,7 @@ def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=
             xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
             if os.stat(xml_path).st_size == 0:
                 continue
-            data = _load_and_remove_errors(schema, xml_path)
+            data = _load(xml_path)
             annotator_data.append((annotator_name, data))
 
         for i in range(len(annotator_data)):
@@ -356,7 +347,6 @@ if __name__ == "__main__":
         return result[0] if len(result) == 1 else result
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--schema", required=True)
     parser.add_argument("--reference-dir", required=True)
     parser.add_argument("--predicted-dir")
     parser.add_argument("--text-dir")
@@ -371,11 +361,9 @@ if __name__ == "__main__":
         basic_config_kwargs["level"] = logging.DEBUG
     logging.basicConfig(**basic_config_kwargs)
 
-    _schema = anafora.validate.Schema.from_file(args.schema)
     _scores_type = DebuggingScores if args.debug else Scores
     if args.predicted_dir is not None:
         _print_scores(score_dirs(
-            schema=_schema,
             reference_dir=args.reference_dir,
             predicted_dir=args.predicted_dir,
             text_dir=args.text_dir,
@@ -385,7 +373,6 @@ if __name__ == "__main__":
             annotation_wrapper=args.annotation_wrapper))
     else:
         _print_scores(score_annotators(
-            schema=_schema,
             anafora_dir=args.reference_dir,
             xml_name_regex=args.xml_name_regex,
             include=args.include,
