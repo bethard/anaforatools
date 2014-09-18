@@ -218,13 +218,14 @@ def _load_and_remove_errors(schema, xml_path):
         return data
 
 
-def score_dirs(schema, reference_dir, predicted_dir, text_dir,
+def score_dirs(schema, reference_dir, predicted_dir, text_dir=None,
                include=None, exclude=None, scores_type=Scores, annotation_wrapper=None):
     """
     :param schema: Anafora schema against which Anafora XML should be valdiated
     :param string reference_dir: directory containing reference ("gold standard") Anafora XML directories
     :param string predicted_dir: directory containing predicted (system-generated) Anafora XML directories
     :param string text_dir: directory containing the raw texts corresponding to the Anafora XML
+        (if None, texts are assumed to be in the reference dir)
     :param set include: types of annotations to include (others will be excluded); may be type names,
         (type-name, property-name) tuples, (type-name, property-name, property-value) tuples
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
@@ -250,19 +251,18 @@ def score_dirs(schema, reference_dir, predicted_dir, text_dir,
             logging.warn("expected one predicted file, found %s", predicted_xml_paths)
             predicted_xml_path = predicted_xml_paths[0]
 
-        possible_text_paths = [os.path.join(text_dir, text_name),
-                               os.path.join(text_dir, sub_dir, text_name)]
-        for text_path in possible_text_paths:
-            if os.path.exists(text_path) and os.path.isfile(text_path):
-                with open(text_path) as text_file:
-                    text = text_file.read()
-
-                    def _span_text(spans):
-                        return "...".join(text[start:end] for start, end in spans)
-                break
+        if text_dir is None:
+            text_path = os.path.join(reference_dir, sub_dir, text_name)
         else:
-            logging.warn("no text file found in %s", possible_text_paths)
+            text_path = os.path.join(text_dir, text_name)
+        if not os.path.exists(text_path) or not os.path.isfile(text_path):
+            logging.warn("no text file found at %s", text_path)
+        else:
+            with open(text_path) as text_file:
+                text = text_file.read()
 
+                def _span_text(spans):
+                    return "...".join(text[start:end] for start, end in spans)
 
         reference_data = _load_and_remove_errors(schema, reference_xml_path)
         predicted_data = _load_and_remove_errors(schema, predicted_xml_path)
@@ -373,13 +373,12 @@ if __name__ == "__main__":
 
     _schema = anafora.validate.Schema.from_file(args.schema)
     _scores_type = DebuggingScores if args.debug else Scores
-    _text_dir = args.text_dir if args.text_dir is not None else args.reference_dir
     if args.predicted_dir is not None:
         _print_scores(score_dirs(
             schema=_schema,
             reference_dir=args.reference_dir,
             predicted_dir=args.predicted_dir,
-            text_dir=_text_dir,
+            text_dir=args.text_dir,
             include=args.include,
             exclude=args.exclude,
             scores_type=_scores_type,
