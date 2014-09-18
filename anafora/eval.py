@@ -232,15 +232,16 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
         try:
             [reference_xml_name] = reference_xml_names
         except ValueError:
-            logging.warn("expected one reference file, found %s", reference_xml_names)
+            logging.warn("expected one reference file for %s, found %s", text_name, reference_xml_names)
             reference_xml_name = reference_xml_names[0]
         reference_xml_path = os.path.join(reference_dir, sub_dir, reference_xml_name)
 
-        predicted_xml_paths = glob.glob(os.path.join(predicted_dir, sub_dir, text_name + "*.xml"))
+        predicted_xml_glob = os.path.join(predicted_dir, sub_dir, text_name + "*.xml")
+        predicted_xml_paths = glob.glob(predicted_xml_glob)
         try:
             [predicted_xml_path] = predicted_xml_paths
         except ValueError:
-            logging.warn("expected one predicted file, found %s", predicted_xml_paths)
+            logging.warn("expected one predicted file at %s, found %s", predicted_xml_glob, predicted_xml_paths)
             predicted_xml_path = predicted_xml_paths[0]
 
         if text_dir is None:
