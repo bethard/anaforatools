@@ -235,23 +235,23 @@ def score_dirs(schema, reference_dir, predicted_dir, text_dir,
     """
     result = collections.defaultdict(lambda: scores_type())
 
-    for _, sub_dir, reference_xml_names in anafora.walk(reference_dir):
+    for sub_dir, text_name, reference_xml_names in anafora.walk(reference_dir):
         try:
             [reference_xml_name] = reference_xml_names
         except ValueError:
-            logging.warn("multiple reference files: %s", reference_xml_names)
+            logging.warn("expected one reference file, found %s", reference_xml_names)
             reference_xml_name = reference_xml_names[0]
         reference_xml_path = os.path.join(reference_dir, sub_dir, reference_xml_name)
 
-        predicted_xml_paths = glob.glob(os.path.join(predicted_dir, sub_dir, sub_dir + "*.xml"))
+        predicted_xml_paths = glob.glob(os.path.join(predicted_dir, sub_dir, text_name + "*.xml"))
         try:
             [predicted_xml_path] = predicted_xml_paths
         except ValueError:
-            logging.warn("multiple predicted files: %s", predicted_xml_paths)
+            logging.warn("expected one predicted file, found %s", predicted_xml_paths)
             predicted_xml_path = predicted_xml_paths[0]
 
-        possible_text_paths = [os.path.join(text_dir, sub_dir),
-                               os.path.join(text_dir, sub_dir, sub_dir)]
+        possible_text_paths = [os.path.join(text_dir, text_name),
+                               os.path.join(text_dir, sub_dir, text_name)]
         for text_path in possible_text_paths:
             if os.path.exists(text_path) and os.path.isfile(text_path):
                 with open(text_path) as text_file:
@@ -272,7 +272,7 @@ def score_dirs(schema, reference_dir, predicted_dir, text_dir,
         for name, scores in named_scores.items():
             result[name].update(scores)
             for annotation, message in getattr(scores, "errors", []):
-                logging.debug('%s: %s: "%s" %s"', sub_dir, message, _span_text(annotation.spans), annotation)
+                logging.debug('%s: %s: "%s" %s"', text_name, message, _span_text(annotation.spans), annotation)
 
     return result
 
@@ -298,9 +298,9 @@ def score_annotators(schema, anafora_dir, xml_name_regex, include=None, exclude=
     def make_prefix(annotators):
         return "{0}-vs-{1}".format(*sorted(annotators))
 
-    for _, sub_dir, xml_names in anafora.walk(anafora_dir, xml_name_regex):
+    for sub_dir, text_name, xml_names in anafora.walk(anafora_dir, xml_name_regex):
         if len(xml_names) < 2:
-            logging.warn("%s: found fewer than 2 annotators: %s", sub_dir, xml_names)
+            logging.warn("%s: found fewer than 2 annotators: %s", text_name, xml_names)
             continue
 
         annotator_data = []

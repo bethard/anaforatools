@@ -10,17 +10,23 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-def walk(anafora_dir, xml_name_regex="[.]xml$"):
+def walk(root, xml_name_regex="[.]xml$"):
     """
-    :param anafora_dir: directory containing Anafora XML directories
-    :return: an iterator of (dir-path, sub-dir, file-names) for the XML files in the directories
+    :param path: directory containing Anafora XML directories
+    :return tuple: an iterator of (sub-dir, text-file-name, xml-file-names) where sub-dir is the path to the Anafora
+        directory relative to root, text-file-name is the name of the Anafora text file, and xml-file-names is a list
+        of names of Anafora XML files
     """
-    for subdir in os.listdir(anafora_dir):
-        if os.path.isdir(os.path.join(anafora_dir, subdir)):
-            xml_names = [xml_name
-                         for xml_name in os.listdir(os.path.join(anafora_dir, subdir))
-                         if re.search(xml_name_regex, xml_name) is not None]
-            yield anafora_dir, subdir, xml_names
+    for dir_path, dir_names, file_names in os.walk(root):
+        if not dir_names:
+            sub_dir = ''
+            if dir_path.startswith(root):
+                sub_dir = dir_path[len(root):]
+                if sub_dir.startswith(os.path.sep):
+                    sub_dir = sub_dir[len(os.path.sep):]
+            xml_names = [file_name for file_name in file_names if re.search(xml_name_regex, file_name) is not None]
+            text_name = os.path.basename(dir_path)
+            yield sub_dir, text_name, xml_names
 
 
 @functools.total_ordering

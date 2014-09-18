@@ -97,7 +97,7 @@ def log_schema_errors(schema, anafora_dir):
     :param Schema schema: the schema to validate against
     :param string anafora_dir: the Anafora directory containing directories to validate
     """
-    for anafora_dir, sub_dir, xml_names in anafora.walk(anafora_dir):
+    for sub_dir, text_name, xml_names in anafora.walk(anafora_dir):
         for xml_name in xml_names:
             xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
             try:
@@ -114,8 +114,9 @@ def find_entities_with_identical_spans(data):
     :param AnaforaData data: the Anafora data to be searched
     """
     span_entities = collections.defaultdict(lambda: [])
-    for ann in data.entities:
-        span_entities[ann.spans].append(ann)
+    for ann in data.annotations:
+        if isinstance(ann, anafora.AnaforaEntity):
+            span_entities[ann.spans].append(ann)
     for span, annotations in span_entities.items():
         if len(annotations) > 1:
             yield span, annotations
@@ -125,7 +126,7 @@ def log_entities_with_identical_spans(anafora_dir):
     """
     :param AnaforaData data: the Anafora data to be searched
     """
-    for anafora_dir, sub_dir, xml_names in anafora.walk(anafora_dir):
+    for sub_dir, text_name, xml_names in anafora.walk(anafora_dir):
         for xml_name in xml_names:
             xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
             try:
@@ -140,10 +141,10 @@ def log_entities_with_identical_spans(anafora_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("schema_xml")
-    parser.add_argument("anafora_dir")
+    parser.add_argument("--schema", required=True)
+    parser.add_argument("--anafora-dir", required=True)
     args = parser.parse_args()
     logging.basicConfig(format="%(levelname)s:%(message)s")
 
-    log_schema_errors(Schema.from_file(args.schema_xml), args.anafora_dir)
+    log_schema_errors(Schema.from_file(args.schema), args.anafora_dir)
     log_entities_with_identical_spans(args.anafora_dir)
