@@ -44,10 +44,7 @@ class _XMLWrapper(object):
         raise NotImplementedError
 
     def __eq__(self, other):
-        return isinstance(other, _XMLWrapper) and self._key() == other._key()
-
-    def __ne__(self, other):
-        return isinstance(other, _XMLWrapper) and self._key() != other._key()
+        return isinstance(other, _XMLWrapper) and _to_frozensets(self) == _to_frozensets(other)
 
     def __hash__(self):
         return hash(_to_frozensets(self))

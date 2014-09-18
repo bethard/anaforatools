@@ -91,3 +91,4 @@ def test_recursive_entity():
     data.annotations.append(entity2)
     entity2.properties["self"] = entity2
     assert hash(entity1) == hash(entity2)
+    assert entity1 == entity2
