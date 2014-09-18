@@ -9,7 +9,9 @@ if __name__ == "__main__":
     parser.add_argument("--encoding", default="utf-8")
     parser.add_argument("--train-dir", required=True)
     parser.add_argument("--train-text-dir")
-    parser.add_argument("--input-dir", required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--input-anafora-dir")
+    group.add_argument("--input-text-dir")
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 
@@ -34,10 +36,11 @@ if __name__ == "__main__":
                 if isinstance(annotation, anafora.AnaforaEntity):
                     annotation_text = ' '.join(text[begin:end] for begin, end in annotation.spans)
                     annotation_text = normalize_whitespace(annotation_text)
-                    text_type_map[annotation_text][annotation.type] += 1
-                    for key, value in annotation.properties.items():
-                        if isinstance(value, basestring):
-                            text_type_attrib_map[annotation_text][annotation.type][key][value] += 1
+                    if annotation_text:
+                        text_type_map[annotation_text][annotation.type] += 1
+                        for key, value in annotation.properties.items():
+                            if isinstance(value, basestring):
+                                text_type_attrib_map[annotation_text][annotation.type][key][value] += 1
 
     predictions = {}
     for text, entity_types in text_type_map.items():
@@ -48,12 +51,19 @@ if __name__ == "__main__":
             attrib[name] = value
         predictions[text] = (entity_type, attrib)
 
-    patterns = [re.sub(r'\s+', r'\s+', re.escape(text)) for text in predictions]
+    patterns = [r'\b{0}\b'.format(re.sub(r'\s+', r'\s+', re.escape(text))) for text in predictions]
     patterns = sorted(patterns, key=len, reverse=True)
     pattern = re.compile('|'.join(patterns))
 
-    for sub_dir, text_name, xml_names in anafora.walk(args.input_dir):
-        text_path = os.path.join(args.input_dir, sub_dir, text_name)
+    if args.input_anafora_dir is not None:
+        root = args.input_anafora_dir
+        walk_iter = ((sub_dir, sub_dir, text_name) for sub_dir, text_name, _ in anafora.walk(args.input_anafora_dir))
+    else:
+        root = args.input_text_dir
+        walk_iter = (('', file_name, file_name) for file_name in os.listdir(args.input_text_dir))
+
+    for input_sub_dir, output_sub_dir, text_name in walk_iter:
+        text_path = os.path.join(root, input_sub_dir, text_name)
         with open(text_path) as text_file:
             text = text_file.read().decode(args.encoding)
 
@@ -68,7 +78,7 @@ if __name__ == "__main__":
                 entity.properties[name] = value
             data.annotations.append(entity)
 
-        output_dir = os.path.join(args.output_dir, sub_dir)
+        output_dir = os.path.join(args.output_dir, output_sub_dir)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         output_path = os.path.join(output_dir, text_name + ".xml")
