@@ -11,7 +11,6 @@ import anafora
 
 class RegexAnnotator(object):
 
-    _whitespace_pattern = regex.compile(r'\s+')
     _word_boundary_pattern = regex.compile(r'\b')
 
     @classmethod
@@ -49,7 +48,7 @@ class RegexAnnotator(object):
                 if isinstance(annotation, anafora.AnaforaEntity):
                     annotation_text = ' '.join(text[begin:end] for begin, end in annotation.spans)
                     if annotation_text:
-                        annotation_regex = cls._whitespace_pattern.sub(r'\s+', annotation_text)
+                        annotation_regex = r'\s+'.join(regex.escape(s) for s in annotation_text.split())
                         begin = min(begin for begin, end in annotation.spans)
                         prefix = r'\b' if cls._word_boundary_pattern.match(text, begin) is not None else ''
                         end = max(end for begin, end in annotation.spans)

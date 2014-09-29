@@ -90,7 +90,7 @@ def test_train():
         </annotations>
     </data>
     """))
-    text2 = "ccccc dddd ccccc dddd ccccc"
+    text2 = "ccccc dddd ccccc dddd ccccc."
     data2 = anafora.AnaforaData(anafora.ElementTree.fromstring("""
     <data>
         <annotations>
@@ -119,6 +119,11 @@ def test_train():
                     <d>D</d>
                 </properties>
             </entity>
+            <entity>
+                <id>4</id>
+                <type>PERIOD</type>
+                <span>27,28</span><!-- "." -->
+            </entity>
         </annotations>
     </data>
     """))
@@ -126,7 +131,7 @@ def test_train():
     annotator = anafora.regex.RegexAnnotator({
         r'\baaa\s+bb\b': ('AA', {"a": "A"}),
         r'\bccccc\b': ('CC', {"c": "C", "d": "D"}),
+        r'\b\.': ('PERIOD', {}),
     })
-    # TODO: test something with characters that need to be escaped in a regex
 
     assert anafora.regex.RegexAnnotator.train([(text1, data1), (text2, data2)]) == annotator
