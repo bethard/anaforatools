@@ -48,13 +48,13 @@ class RegexAnnotator(object):
             for annotation in data.annotations:
                 if isinstance(annotation, anafora.AnaforaEntity):
                     annotation_text = ' '.join(text[begin:end] for begin, end in annotation.spans)
-                    annotation_regex = cls._whitespace_pattern.sub(r'\s+', annotation_text)
-                    begin = min(begin for begin, end in annotation.spans)
-                    prefix = r'\b' if cls._word_boundary_pattern.match(text, begin) is not None else ''
-                    end = max(end for begin, end in annotation.spans)
-                    suffix = r'\b' if cls._word_boundary_pattern.match(text, end) is not None else ''
-                    annotation_regex = '{0}{1}{2}'.format(prefix, annotation_regex, suffix)
-                    if annotation_regex:
+                    if annotation_text:
+                        annotation_regex = cls._whitespace_pattern.sub(r'\s+', annotation_text)
+                        begin = min(begin for begin, end in annotation.spans)
+                        prefix = r'\b' if cls._word_boundary_pattern.match(text, begin) is not None else ''
+                        end = max(end for begin, end in annotation.spans)
+                        suffix = r'\b' if cls._word_boundary_pattern.match(text, end) is not None else ''
+                        annotation_regex = '{0}{1}{2}'.format(prefix, annotation_regex, suffix)
                         text_type_map[annotation_regex][annotation.type] += 1
                         for key, value in annotation.properties.items():
                             if isinstance(value, basestring):

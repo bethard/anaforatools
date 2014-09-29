@@ -82,6 +82,11 @@ def test_train():
                     <c>B</c>
                 </properties>
             </entity>
+            <entity>
+                <id>3</id>
+                <type>EMPTY</type>
+                <span>0,0</span>
+            </entity>
         </annotations>
     </data>
     """))
