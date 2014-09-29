@@ -12,6 +12,7 @@ import anafora
 class RegexAnnotator(object):
 
     _whitespace_pattern = regex.compile(r'\s+')
+    _word_boundary_pattern = regex.compile(r'\b')
 
     @classmethod
     def from_file(cls, path_or_file):
@@ -46,14 +47,18 @@ class RegexAnnotator(object):
         for text, data in text_data_pairs:
             for annotation in data.annotations:
                 if isinstance(annotation, anafora.AnaforaEntity):
-                    # TODO: prefix and suffix \b where appropriate
                     annotation_text = ' '.join(text[begin:end] for begin, end in annotation.spans)
-                    annotation_text = cls._whitespace_pattern.sub(r'\s+', annotation_text)
-                    if annotation_text:
-                        text_type_map[annotation_text][annotation.type] += 1
+                    annotation_regex = cls._whitespace_pattern.sub(r'\s+', annotation_text)
+                    begin = min(begin for begin, end in annotation.spans)
+                    prefix = r'\b' if cls._word_boundary_pattern.match(text, begin) is not None else ''
+                    end = max(end for begin, end in annotation.spans)
+                    suffix = r'\b' if cls._word_boundary_pattern.match(text, end) is not None else ''
+                    annotation_regex = '{0}{1}{2}'.format(prefix, annotation_regex, suffix)
+                    if annotation_regex:
+                        text_type_map[annotation_regex][annotation.type] += 1
                         for key, value in annotation.properties.items():
                             if isinstance(value, basestring):
-                                text_type_attrib_map[annotation_text][annotation.type][key][value] += 1
+                                text_type_attrib_map[annotation_regex][annotation.type][key][value] += 1
         predictions = {}
         for text, entity_types in text_type_map.items():
             [(entity_type, _)] = entity_types.most_common(1)

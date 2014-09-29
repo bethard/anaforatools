@@ -119,8 +119,9 @@ def test_train():
     """))
 
     annotator = anafora.regex.RegexAnnotator({
-        r'aaa\s+bb': ('AA', {"a": "A"}),
-        'ccccc': ('CC', {"c": "C", "d": "D"}),
+        r'\baaa\s+bb\b': ('AA', {"a": "A"}),
+        r'\bccccc\b': ('CC', {"c": "C", "d": "D"}),
     })
+    # TODO: test something with characters that need to be escaped in a regex
 
     assert anafora.regex.RegexAnnotator.train([(text1, data1), (text2, data2)]) == annotator
