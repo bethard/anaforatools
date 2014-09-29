@@ -11,6 +11,26 @@ def test_empty():
     assert list(data.annotations) == []
 
 
+def test_duplicate_id():
+    with pytest.raises(ValueError):
+        anafora.AnaforaData(anafora.ElementTree.fromstring('''
+        <data>
+            <annotations>
+                <entity><id>1</id></entity>
+                <entity><id>1</id></entity>
+            </annotations>
+        </data>'''))
+
+    data = anafora.AnaforaData()
+    entity1 = anafora.AnaforaEntity()
+    entity1.id = "1"
+    entity2 = anafora.AnaforaEntity()
+    entity2.id = "1"
+    data.annotations.append(entity1)
+    with pytest.raises(ValueError):
+        data.annotations.append(entity2)
+
+
 def test_add_entity():
     data = anafora.AnaforaData()
     assert str(data) == '<data />'

@@ -98,6 +98,8 @@ class AnaforaAnnotations(_XMLWrapper):
                     annotation = AnaforaRelation(annotation_elem, self)
                 else:
                     raise ValueError("invalid tag: {0}".format(annotation_elem.tag))
+                if annotation.id in self._id_to_annotation:
+                    raise ValueError("duplicate id: {0}".format(annotation.id))
                 self._id_to_annotation[annotation.id] = annotation
 
     def __iter__(self):
@@ -109,6 +111,8 @@ class AnaforaAnnotations(_XMLWrapper):
         """
         if annotation.id is None:
             raise ValueError("no id defined for {0}".format(annotation))
+        if annotation.id in self._id_to_annotation:
+            raise ValueError("duplicate id: {0}".format(annotation.id))
         annotation._annotations = self
         if self.xml is None:
             self.xml = ElementTree.SubElement(self._data.xml, "annotations")
