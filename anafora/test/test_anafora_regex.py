@@ -59,3 +59,68 @@ b\tB\t{"x": "y"}
         r'\dc\s+x': ('C', {})
     })
     assert anafora.regex.RegexAnnotator.from_file(str(path)) == annotator
+
+
+def test_train():
+    text1 = "aaa bb ccccc dddd"
+    data1 = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>1</id>
+                <type>AA</type>
+                <span>0,6</span><!-- "aaa bb" -->
+                <properties>
+                    <a>A</a>
+                </properties>
+            </entity>
+            <entity>
+                <id>2</id>
+                <type>AA</type>
+                <span>7,12</span><!-- "ccccc" -->
+                <properties>
+                    <c>B</c>
+                </properties>
+            </entity>
+        </annotations>
+    </data>
+    """))
+    text2 = "ccccc dddd ccccc dddd ccccc"
+    data2 = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>1</id>
+                <type>CC</type>
+                <span>0,5</span><!-- "ccccc" -->
+                <properties>
+                    <c>B</c>
+                </properties>
+            </entity>
+            <entity>
+                <id>2</id>
+                <type>CC</type>
+                <span>11,16</span><!-- "ccccc" -->
+                <properties>
+                    <c>C</c>
+                </properties>
+            </entity>
+            <entity>
+                <id>3</id>
+                <type>CC</type>
+                <span>22,27</span><!-- "ccccc" -->
+                <properties>
+                    <c>C</c>
+                    <d>D</d>
+                </properties>
+            </entity>
+        </annotations>
+    </data>
+    """))
+
+    annotator = anafora.regex.RegexAnnotator({
+        r'aaa\s+bb': ('AA', {"a": "A"}),
+        'ccccc': ('CC', {"c": "C", "d": "D"}),
+    })
+
+    assert anafora.regex.RegexAnnotator.train([(text1, data1), (text2, data2)]) == annotator

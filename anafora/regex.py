@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import codecs
+import collections
 import json
 
 import regex
@@ -9,6 +10,8 @@ import anafora
 
 
 class RegexAnnotator(object):
+
+    _whitespace_pattern = regex.compile(r'\s+')
 
     @classmethod
     def from_file(cls, path_or_file):
@@ -35,6 +38,32 @@ class RegexAnnotator(object):
                 regex_type_attributes_map[expression] = (entity_type, attributes)
             return cls(regex_type_attributes_map)
 
+    @classmethod
+    def train(cls, text_data_pairs):
+        ddict = collections.defaultdict
+        text_type_map = ddict(lambda: collections.Counter())
+        text_type_attrib_map = ddict(lambda: ddict(lambda: ddict(lambda: collections.Counter())))
+        for text, data in text_data_pairs:
+            for annotation in data.annotations:
+                if isinstance(annotation, anafora.AnaforaEntity):
+                    # TODO: prefix and suffix \b where appropriate
+                    annotation_text = ' '.join(text[begin:end] for begin, end in annotation.spans)
+                    annotation_text = cls._whitespace_pattern.sub(r'\s+', annotation_text)
+                    if annotation_text:
+                        text_type_map[annotation_text][annotation.type] += 1
+                        for key, value in annotation.properties.items():
+                            if isinstance(value, basestring):
+                                text_type_attrib_map[annotation_text][annotation.type][key][value] += 1
+        predictions = {}
+        for text, entity_types in text_type_map.items():
+            [(entity_type, _)] = entity_types.most_common(1)
+            attrib = {}
+            for name, values in text_type_attrib_map[text][entity_type].items():
+                [(value, _)] = values.most_common(1)
+                attrib[name] = value
+            predictions[text] = (entity_type, attrib)
+        return cls(predictions)
+
     def __init__(self, regex_type_attributes_map):
         self.regex_type_attributes_map = regex_type_attributes_map
 
@@ -50,7 +79,7 @@ class RegexAnnotator(object):
         :param anafora.AnaforaData data: the data to which the annotations should be added
         """
         patterns = sorted(self.regex_type_attributes_map, key=len, reverse=True)
-        pattern = regex.compile('|'.join(r'\b({0})\b'.format(pattern) for pattern in patterns))
+        pattern = regex.compile('|'.join('({0})'.format(pattern) for pattern in patterns))
         for i, match in enumerate(pattern.finditer(text)):
             pattern = patterns[match.lastindex - 1]
             entity_type, attributes = self.regex_type_attributes_map[pattern]
