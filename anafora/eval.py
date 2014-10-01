@@ -233,37 +233,45 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
             [reference_xml_name] = reference_xml_names
         except ValueError:
             logging.warn("expected one reference file for %s, found %s", text_name, reference_xml_names)
+            if not reference_xml_names:
+                continue
             reference_xml_name = reference_xml_names[0]
         reference_xml_path = os.path.join(reference_dir, sub_dir, reference_xml_name)
+        reference_data = _load(reference_xml_path)
 
         predicted_xml_glob = os.path.join(predicted_dir, sub_dir, text_name + "*.xml")
         predicted_xml_paths = glob.glob(predicted_xml_glob)
         try:
             [predicted_xml_path] = predicted_xml_paths
+            predicted_data = _load(predicted_xml_path)
         except ValueError:
             logging.warn("expected one predicted file at %s, found %s", predicted_xml_glob, predicted_xml_paths)
-            predicted_xml_path = predicted_xml_paths[0]
+            if not predicted_xml_paths:
+                predicted_data = anafora.AnaforaData()
+            else:
+                predicted_data = _load(predicted_xml_paths[0])
 
         if text_dir is None:
             text_path = os.path.join(reference_dir, sub_dir, text_name)
         else:
             text_path = os.path.join(text_dir, text_name)
         if not os.path.exists(text_path) or not os.path.isfile(text_path):
-            logging.warn("no text file found at %s", text_path)
+            def _span_text(_):
+                raise RuntimeError("no text file found at {0}".format(text_path))
         else:
             with open(text_path) as text_file:
                 text = text_file.read()
 
-                def _span_text(spans):
-                    return "...".join(text[start:end] for start, end in spans)
+            def _span_text(spans):
+                return "...".join(text[start:end] for start, end in spans)
 
-        reference_data = _load(reference_xml_path)
-        predicted_data = _load(predicted_xml_path)
 
         named_scores = score_data(reference_data, predicted_data, include, exclude,
                                   scores_type=scores_type, annotation_wrapper=annotation_wrapper)
         for name, scores in named_scores.items():
             result[name].update(scores)
+            if not predicted_xml_paths:
+                continue
             for annotation, message in getattr(scores, "errors", []):
                 logging.debug('%s: %s: "%s" %s"', text_name, message, _span_text(annotation.spans), annotation)
 
