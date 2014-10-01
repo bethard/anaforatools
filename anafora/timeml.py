@@ -63,23 +63,6 @@ def to_anafora_data(timeml_path):
     return data
 
 
-# http://effbot.org/zone/element-lib.htm#prettyprint
-def _indent(elem, level=0):
-    i = "\n" + level * "  "
-    if len(elem):
-        if not elem.text or not elem.text.strip():
-            elem.text = i + "  "
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-        for elem in elem:
-            _indent(elem, level + 1)
-        if not elem.tail or not elem.tail.strip():
-            elem.tail = i
-    else:
-        if level and (not elem.tail or not elem.tail.strip()):
-            elem.tail = i
-
-
 def _timeml_dir_to_anafora_dir(timeml_dir, anafora_dir, schema_name="TimeML"):
     for root, _, file_names in os.walk(timeml_dir):
         if root.startswith(timeml_dir):
@@ -92,7 +75,7 @@ def _timeml_dir_to_anafora_dir(timeml_dir, anafora_dir, schema_name="TimeML"):
                 file_path = os.path.join(root, file_name)
                 text = to_text(file_path)
                 data = to_anafora_data(file_path)
-                _indent(data.xml)
+                data.indent()
 
                 anafora_file_name = file_name[:-4]
                 anafora_file_dir = os.path.join(anafora_dir, sub_dir, anafora_file_name)
@@ -102,8 +85,8 @@ def _timeml_dir_to_anafora_dir(timeml_dir, anafora_dir, schema_name="TimeML"):
 
                 with open(anafora_file_path, 'w') as text_file:
                     text_file.write(text)
-                with open("{0}.{1}.gold.completed.xml".format(anafora_file_path, schema_name), 'w') as xml_file:
-                    anafora.ElementTree.ElementTree(data.xml).write(xml_file)
+                data.indent()
+                data.to_file("{0}.{1}.gold.completed.xml".format(anafora_file_path, schema_name))
 
 
 if __name__ == "__main__":

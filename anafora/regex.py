@@ -1,8 +1,10 @@
 from __future__ import absolute_import
 
+import argparse
 import codecs
 import collections
 import json
+import os
 
 import regex
 
@@ -12,6 +14,7 @@ import anafora
 class RegexAnnotator(object):
 
     _word_boundary_pattern = regex.compile(r'\b')
+    _capturing_group_pattern = regex.compile(r'\([^?]')
 
     @classmethod
     def from_file(cls, path_or_file):
@@ -35,6 +38,12 @@ class RegexAnnotator(object):
                 else:
                     [expression, entity_type, attributes_string] = items
                     attributes = json.loads(attributes_string)
+                try:
+                    regex.compile(expression)
+                except regex.error as e:
+                    raise ValueError("{0} in {1!r}".format(e.message, expression))
+                if cls._capturing_group_pattern.search(expression):
+                    raise ValueError("capturing groups are not allowed: " + expression)
                 regex_type_attributes_map[expression] = (entity_type, attributes)
             return cls(regex_type_attributes_map)
 
@@ -90,6 +99,7 @@ class RegexAnnotator(object):
             entity = anafora.AnaforaEntity()
             entity.id = "{0}@regex".format(i)
             entity.type = entity_type
+            entity.spans = ((match.start(), match.end()),)
             for key, value in attributes.items():
                 entity.properties[key] = value
             data.annotations.append(entity)
@@ -111,3 +121,69 @@ class RegexAnnotator(object):
                 write('\t')
                 write(json.dumps(attributes))
                 write('\n')
+
+
+def _train(train_dir, model_file, train_text_dir=None, text_encoding="utf-8"):
+    def text_data_pairs():
+        for sub_dir, text_name, xml_names in anafora.walk(train_dir):
+            if train_text_dir is not None:
+                text_path = os.path.join(train_text_dir, text_name)
+            else:
+                text_path = os.path.join(train_dir, sub_dir, text_name)
+            with codecs.open(text_path, 'r', text_encoding) as text_file:
+                text = text_file.read()
+            for xml_name in xml_names:
+                data = anafora.AnaforaData.from_file(os.path.join(train_dir, sub_dir, xml_name))
+                yield text, data
+
+    model = RegexAnnotator.train(text_data_pairs())
+    model.to_file(model_file)
+
+
+def _annotate(model_file, text_dir, output_dir, text_dir_structure="flat", text_encoding="utf-8"):
+    model = RegexAnnotator.from_file(model_file)
+    if text_dir_structure == "flat":
+        walk_iter = (('', file_name, file_name) for file_name in os.listdir(text_dir))
+    elif text_dir_structure == "anafora":
+        walk_iter = ((sub_dir, sub_dir, text_name) for sub_dir, text_name, _ in anafora.walk(text_dir))
+    else:
+        raise ValueError("unsupported text dir structure: " + text_dir_structure)
+
+    for input_sub_dir, output_sub_dir, text_name in walk_iter:
+        text_path = os.path.join(text_dir, input_sub_dir, text_name)
+        with codecs.open(text_path, 'r', text_encoding) as text_file:
+            text = text_file.read()
+
+        data = anafora.AnaforaData()
+        model.annotate(text, data)
+
+        data_output_dir = os.path.join(output_dir, output_sub_dir)
+        if not os.path.exists(data_output_dir):
+            os.makedirs(data_output_dir)
+        data_output_path = os.path.join(data_output_dir, text_name + ".xml")
+        data.indent()
+        data.to_file(data_output_path)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    train_parser = subparsers.add_parser("train")
+    train_parser.set_defaults(func=_train)
+    train_parser.add_argument("--train-dir", required=True)
+    train_parser.add_argument("--train-text-dir")
+    train_parser.add_argument("--text-encoding", default="utf-8")
+    train_parser.add_argument("--model-file", required=True)
+
+    annotate_parser = subparsers.add_parser("annotate")
+    annotate_parser.set_defaults(func=_annotate)
+    annotate_parser.add_argument("--model-file", required=True)
+    annotate_parser.add_argument("--text-dir", required=True)
+    annotate_parser.add_argument("--text-dir-structure", choices={"anafora", "flat"}, default="flat")
+    annotate_parser.add_argument("--text-encoding", default="utf-8")
+    annotate_parser.add_argument("--output-dir", required=True)
+
+    args = parser.parse_args()
+    kwargs = vars(args)
+    kwargs.pop("func")(**kwargs)

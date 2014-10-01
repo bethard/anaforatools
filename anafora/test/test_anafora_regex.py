@@ -15,8 +15,10 @@ def test_regex_annotator():
     assert len(list(data.annotations)) == 2
     [b_annotation, a_annotation] = data.annotations
     assert b_annotation.type == "B"
+    assert b_annotation.spans == ((0, 2),)
     assert dict(b_annotation.properties.items()) == {'Y': '1'}
     assert a_annotation.type == "A"
+    assert a_annotation.spans == ((3, 6),)
     assert dict(a_annotation.properties.items()) == {}
 
 
@@ -32,6 +34,7 @@ def test_many_groups():
     assert len(list(data.annotations)) == 1
     [annotation] = data.annotations
     assert annotation.type == "AAAAAAAAAA"
+    assert annotation.spans == ((0, 10),)
     assert dict(annotation.properties.items()) == {}
 
 

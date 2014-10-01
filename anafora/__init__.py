@@ -84,6 +84,28 @@ class AnaforaData(_XMLWrapper):
     def from_file(cls, xml_path):
         return cls(ElementTree.parse(xml_path).getroot())
 
+    def indent(self, string="\t"):
+        # http://effbot.org/zone/element-lib.htm#prettyprint
+        def _indent(elem, level=0):
+            i = "\n" + level * string
+            if len(elem):
+                if not elem.text or not elem.text.strip():
+                    elem.text = i + string
+                if not elem.tail or not elem.tail.strip():
+                    elem.tail = i
+                for elem in elem:
+                    _indent(elem, level + 1)
+                if not elem.tail or not elem.tail.strip():
+                    elem.tail = i
+            else:
+                if level and (not elem.tail or not elem.tail.strip()):
+                    elem.tail = i
+        _indent(self.xml)
+
+    def to_file(self, xml_path):
+        ElementTree.ElementTree(self.xml).write(xml_path)
+
+
 
 class AnaforaAnnotations(_XMLWrapper):
     def __init__(self, xml, _data):
