@@ -80,8 +80,13 @@ def _indent(elem, level=0):
             elem.tail = i
 
 
-def _timeml_dir_to_anafora_dir(timeml_dir, anafora_dir):
+def _timeml_dir_to_anafora_dir(timeml_dir, anafora_dir, schema_name="TimeML"):
     for root, _, file_names in os.walk(timeml_dir):
+        if root.startswith(timeml_dir):
+            sub_dir = root[len(timeml_dir):].lstrip(os.path.sep)
+        else:
+            sub_dir = ''
+
         for file_name in file_names:
             if file_name.endswith(".tml"):
                 file_path = os.path.join(root, file_name)
@@ -90,20 +95,21 @@ def _timeml_dir_to_anafora_dir(timeml_dir, anafora_dir):
                 _indent(data.xml)
 
                 anafora_file_name = file_name[:-4]
-                anafora_file_dir = os.path.join(anafora_dir, anafora_file_name)
+                anafora_file_dir = os.path.join(anafora_dir, sub_dir, anafora_file_name)
                 if not os.path.exists(anafora_file_dir):
                     os.makedirs(anafora_file_dir)
                 anafora_file_path = os.path.join(anafora_file_dir, anafora_file_name)
 
                 with open(anafora_file_path, 'w') as text_file:
                     text_file.write(text)
-                with open(anafora_file_path + ".timeml.timeml.gold.completed.xml", 'w') as xml_file:
+                with open("{0}.{1}.gold.completed.xml".format(anafora_file_path, schema_name), 'w') as xml_file:
                     anafora.ElementTree.ElementTree(data.xml).write(xml_file)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("timeml_dir")
-    parser.add_argument("anafora_dir")
+    parser.add_argument("--timeml-dir", required=True)
+    parser.add_argument("--anafora-dir", required=True)
+    parser.add_argument("--schema-name", default="TimeML")
     args = parser.parse_args()
-    _timeml_dir_to_anafora_dir(args.timeml_dir, args.anafora_dir)
+    _timeml_dir_to_anafora_dir(args.timeml_dir, args.anafora_dir, args.schema_name)
