@@ -138,3 +138,50 @@ def test_train():
     })
 
     assert anafora.regex.RegexAnnotator.train([(text1, data1), (text2, data2)]) == annotator
+
+
+def test_filter_by_precision():
+    annotator = anafora.regex.RegexAnnotator({
+        r'the': ("THE", {}),
+        r'\bthe\b': ("THE", {}),
+        r'yer\b': ("ER", {}),
+        r'er\b': ("ER", {})
+    })
+    text = "the theater near the record player"
+    data = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>1</id>
+                <type>THE</type>
+                <span>0,3</span><!-- "the" -->
+            </entity>
+            <entity>
+                <id>2</id>
+                <type>THE</type>
+                <span>17,20</span><!-- "the" -->
+            </entity>
+            <entity>
+                <id>3</id>
+                <type>ER</type>
+                <span>9,11</span><!-- "er" -->
+            </entity>
+            <entity>
+                <id>4</id>
+                <type>ER</type>
+                <span>32,34</span><!-- "." -->
+            </entity>
+        </annotations>
+    </data>
+    """))
+    annotator.prune_by_precision(0.6, [(text, data)])
+    assert annotator == anafora.regex.RegexAnnotator({
+        r'the': ("THE", {}),
+        r'\bthe\b': ("THE", {}),
+        r'er\b': ("ER", {})
+    })
+    annotator.prune_by_precision(1.0, [(text, data)])
+    assert annotator == anafora.regex.RegexAnnotator({
+        r'\bthe\b': ("THE", {}),
+        r'er\b': ("ER", {})
+    })

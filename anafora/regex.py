@@ -10,6 +10,7 @@ import os
 import regex
 
 import anafora
+import anafora.eval
 
 
 class RegexAnnotator(object):
@@ -105,6 +106,21 @@ class RegexAnnotator(object):
                 entity.properties[key] = value
             data.annotations.append(entity)
 
+    def prune_by_precision(self, min_precision, text_data_pairs):
+        pattern_scores = collections.defaultdict(lambda: anafora.eval.Scores())
+        for text, data in text_data_pairs:
+            reference_type_spans_map = collections.defaultdict(lambda: set())
+            for annotation in data.annotations:
+                reference_type_spans_map[annotation.type].add(annotation.spans)
+            for pattern in self.regex_type_attributes_map:
+                predicted_spans = {((m.start(), m.end()),) for m in regex.finditer(pattern, text)}
+                if predicted_spans:
+                    predicted_type, _ = self.regex_type_attributes_map[pattern]
+                    pattern_scores[pattern].add(reference_type_spans_map[predicted_type], predicted_spans)
+        for pattern, scores in pattern_scores.items():
+            if scores.precision() < min_precision:
+                del self.regex_type_attributes_map[pattern]
+
     def to_file(self, path_or_file):
         """
         :param string|file path_or_file: a string path or a file object where the RegexAnnotator should be serialized
@@ -124,7 +140,7 @@ class RegexAnnotator(object):
                 write('\n')
 
 
-def _train(train_dir, model_file, train_text_dir=None, text_encoding="utf-8"):
+def _train(train_dir, model_file, train_text_dir=None, text_encoding="utf-8", min_precision=None):
     def text_data_pairs():
         for sub_dir, text_name, xml_names in anafora.walk(train_dir):
             if train_text_dir is not None:
@@ -141,6 +157,8 @@ def _train(train_dir, model_file, train_text_dir=None, text_encoding="utf-8"):
                 yield text, data
 
     model = RegexAnnotator.train(text_data_pairs())
+    if min_precision is not None:
+        model.prune_by_precision(min_precision, text_data_pairs())
     model.to_file(model_file)
 
 
@@ -178,6 +196,7 @@ if __name__ == "__main__":
     train_parser.add_argument("--train-dir", required=True)
     train_parser.add_argument("--train-text-dir")
     train_parser.add_argument("--text-encoding", default="utf-8")
+    train_parser.add_argument("--min-precision", type=float)
     train_parser.add_argument("--model-file", required=True)
 
     annotate_parser = subparsers.add_parser("annotate")
