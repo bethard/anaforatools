@@ -4,6 +4,7 @@ import argparse
 import codecs
 import collections
 import json
+import logging
 import os
 
 import regex
@@ -14,7 +15,7 @@ import anafora
 class RegexAnnotator(object):
 
     _word_boundary_pattern = regex.compile(r'\b')
-    _capturing_group_pattern = regex.compile(r'\([^?]')
+    _capturing_group_pattern = regex.compile(r'[^\\]\([^?]')
 
     @classmethod
     def from_file(cls, path_or_file):
@@ -130,6 +131,9 @@ def _train(train_dir, model_file, train_text_dir=None, text_encoding="utf-8"):
                 text_path = os.path.join(train_text_dir, text_name)
             else:
                 text_path = os.path.join(train_dir, sub_dir, text_name)
+            if not os.path.exists(text_path):
+                logging.warning("no text found at %s", text_path)
+                continue
             with codecs.open(text_path, 'r', text_encoding) as text_file:
                 text = text_file.read()
             for xml_name in xml_names:
