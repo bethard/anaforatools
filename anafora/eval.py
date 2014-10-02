@@ -164,19 +164,19 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
 
     AnnotationView = collections.namedtuple("AnnotationView", ["spans", "name", "value"])
 
-    def _props(annotations):
-        props = set()
+    def _views(annotations):
+        views = set()
         for ann in annotations:
             spans = ann.spans
             if _accept(ann.type, "<span>"):
-                props.add(AnnotationView(spans, (ann.type, "<span>"), None))
-            for prop_name in ann.properties:
-                prop_value = ann.properties[prop_name]
-                if _accept(ann.type, prop_name):
-                    props.add(AnnotationView(spans, (ann.type, prop_name), prop_value))
-                if _accept(ann.type, prop_name, prop_value) and isinstance(prop_value, basestring):
-                    props.add(AnnotationView(spans, (ann.type, prop_name, prop_value), prop_value))
-        return props
+                views.add(AnnotationView(spans, (ann.type, "<span>"), None))
+            for view_name in ann.properties:
+                view_value = ann.properties[view_name]
+                if _accept(ann.type, view_name):
+                    views.add(AnnotationView(spans, (ann.type, view_name), view_value))
+                if _accept(ann.type, view_name, view_value) and isinstance(view_value, basestring):
+                    views.add(AnnotationView(spans, (ann.type, view_name, view_value), view_value))
+        return views
 
     result = collections.defaultdict(lambda: scores_type())
     reference_annotations = reference_data.annotations
@@ -184,16 +184,17 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
     if annotation_wrapper is not None:
         reference_annotations = map(annotation_wrapper, reference_annotations)
         predicted_annotations = map(annotation_wrapper, predicted_annotations)
-    groups = _group_by(reference_annotations, predicted_annotations, lambda a: a.type)
-    for ann_type in sorted(groups):
-        reference_annotations, predicted_annotations = groups[ann_type]
+    results_by_type = _group_by(reference_annotations, predicted_annotations, lambda a: a.type)
+    for ann_type in sorted(results_by_type):
+        type_reference_annotations, type_predicted_annotations = results_by_type[ann_type]
         if _accept(ann_type):
-            result[ann_type].add(reference_annotations, predicted_annotations)
-
-        prop_groups = _group_by(_props(reference_annotations), _props(predicted_annotations), lambda t: t.name)
-        for name in sorted(prop_groups):
-            reference_tuples, predicted_tuples = prop_groups[name]
-            result[name].add(reference_tuples, predicted_tuples)
+            result[ann_type].add(type_reference_annotations, type_predicted_annotations)
+        reference_views = _views(type_reference_annotations)
+        predicted_views = _views(type_predicted_annotations)
+        results_by_view = _group_by(reference_views, predicted_views, lambda t: t.name)
+        for view_name in sorted(results_by_view):
+            view_reference_annotations, view_predicted_annotations = results_by_view[view_name]
+            result[view_name].add(view_reference_annotations, view_predicted_annotations)
 
     return result
 
