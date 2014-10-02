@@ -190,7 +190,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
         if _accept(ann_type):
             result[ann_type].add(reference_annotations, predicted_annotations)
 
-        prop_groups = _group_by(_props(reference_annotations), _props(predicted_annotations), lambda t: t[1])
+        prop_groups = _group_by(_props(reference_annotations), _props(predicted_annotations), lambda t: t.name)
         for name in sorted(prop_groups):
             reference_tuples, predicted_tuples = prop_groups[name]
             result[name].add(reference_tuples, predicted_tuples)
