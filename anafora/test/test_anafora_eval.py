@@ -1,3 +1,5 @@
+import collections
+
 import anafora
 import anafora.eval
 
@@ -458,3 +460,45 @@ def test_score_data_overlap():
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 1
+
+
+def test_temporal_closure_scores():
+    Annotation = collections.namedtuple("Annotation", ["spans", "relation"])
+    reference = {
+        Annotation(("A", "B"), "BEFORE"),
+        Annotation(("B", "C"), "IS_INCLUDED"),
+        Annotation(("D", "C"), "INCLUDES"),
+        Annotation(("E", "D"), "CONTAINS"),
+        Annotation(("F", "E"), "AFTER"),
+        # inferred:
+        # A before B
+        # A before F
+        # B before F
+        # C includes B
+        # C before F
+        # D includes B
+        # D includes C
+        # D before F
+        # E includes B
+        # E includes C
+        # E includes D
+        # E before F
+    }
+    predicted = {
+        Annotation(("A", "B"), "BEFORE"),   # (+)
+        Annotation(("B", "E"), "CONTAINS"), # (-)
+        Annotation(("B", "F"), "BEFORE"),   # (+)
+        Annotation(("F", "D"), "AFTER"),    # (+)
+        # inferred:
+        # (+) A before B
+        # ( ) A before E
+        # ( ) A before F
+        # ( ) B includes E
+        # ( ) B before F
+        # ( ) D before F
+        # (+) E before F
+    }
+    scores = anafora.eval.TemporalClosureScores()
+    scores.add(reference, predicted)
+    assert scores.precision() == 3.0 / 4.0
+    assert scores.recall() ==  2.0 / 5.0

@@ -69,6 +69,55 @@ class DebuggingScores(Scores):
         self.errors.extend(other.errors)
 
 
+class TemporalClosureScores(object):
+    def __init__(self):
+        self.reference = 0
+        self.predicted = 0
+        self.precision_correct = 0
+        self.recall_correct = 0
+
+    def add(self, reference, predicted):
+        """
+        :param set reference: the reference annotations
+        :param set predicted: the predicted annotations
+        :return tuple: (annotations only in reference, annotations only predicted)
+        """
+        self.reference += len(reference)
+        self.predicted += len(predicted)
+        self.precision_correct += len(self._closure(reference) & self._normalize(predicted))
+        self.recall_correct += len(self._normalize(reference) & self._closure(predicted))
+
+    def update(self, other):
+        self.reference += other.reference
+        self.predicted += other.predicted
+        self.precision_correct += other.precision_correct
+        self.recall_correct += other.recall_correct
+
+    def precision(self):
+        return 1.0 if self.predicted == 0 else self.precision_correct / float(self.predicted)
+
+    def recall(self):
+        return 1.0 if self.reference == 0 else self.recall_correct / float(self.reference)
+
+    def f1(self):
+        p = self.precision()
+        r = self.recall()
+        return 0.0 if p + r == 0.0 else 2 * p * r / (p + r)
+
+    def __repr__(self):
+        return "{0}(reference={1}, predicted={2}, precision_correct={3}, recall_correct={4})".format(
+            self.__class__.__name__, self.reference, self.predicted, self.precision_correct, self.recall_correct
+        )
+
+    def _closure(self, annotations):
+        # TODO
+        return annotations
+
+    def _normalize(self, annotations):
+        # TODO
+        return annotations
+
+
 class _OverlappingWrapper(object):
     def __init__(self, annotation, seen=None):
         self.annotation = annotation
