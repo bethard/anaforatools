@@ -82,10 +82,12 @@ class TemporalClosureScores(object):
         :param set predicted: the predicted annotations
         :return tuple: (annotations only in reference, annotations only predicted)
         """
+        reference = set(map(self._normalize, reference))
+        predicted = set(map(self._normalize, predicted))
         self.reference += len(reference)
         self.predicted += len(predicted)
-        self.precision_correct += len(self._closure(reference) & self._normalize(predicted))
-        self.recall_correct += len(self._normalize(reference) & self._closure(predicted))
+        self.precision_correct += len(self._closure(reference) & predicted)
+        self.recall_correct += len(reference & self._closure(predicted))
 
     def update(self, other):
         self.reference += other.reference
@@ -109,14 +111,92 @@ class TemporalClosureScores(object):
             self.__class__.__name__, self.reference, self.predicted, self.precision_correct, self.recall_correct
         )
 
+    def _normalize(self, annotation):
+        if not isinstance(annotation, _AnnotationView):
+            raise RuntimeError("TemporalClosureScores requires an _AnnotationView")
+        try:
+            (source, target) = annotation.spans
+        except ValueError:
+            raise RuntimeError("TemporalClosureScores requires an 2-tuple for spans")
+        value = annotation.value
+        if value in self._rename:
+            value = self._rename[value]
+        return _AnnotationView(annotation.spans, annotation.name, value)
+
     def _closure(self, annotations):
-        # TODO
-        return annotations
+        old_result = set()
+        result = set(annotations)
+        for annotation in annotations:
+            result.add(self._reversed(annotation))
+        while len(old_result) != len(result):
+            old_result = result
+            result = set(result)
+            for annotation1 in old_result:
+                (source1, target1) = annotation1.spans
+                value1 = annotation1.value
+                for annotation2 in old_result:
+                    if annotation2 is not annotation1 and annotation2.name == annotation1.name:
+                        (source2, target2) = annotation2.spans
+                        if target1 == source2:
+                            value2 = annotation2.value
+                            value3 = self._transitivity[value1][value2]
+                            if value3 is not None:
+                                annotation3 = _AnnotationView((source1, target2), annotation1.name, value3)
+                                result.add(annotation3)
+                                result.add(self._reversed(annotation3))
+        return result
 
-    def _normalize(self, annotations):
-        # TODO
-        return annotations
+    def _reversed(self, annotation):
+        return _AnnotationView(annotation.spans[::-1], annotation.name, self._reverse[annotation.value])
 
+
+    _BEFORE = "BEFORE"
+    _AFTER = "AFTER"
+    _INCLUDES = "INCLUDES"
+    _IS_INCLUDED = "IS_INCLUDED"
+    _OVERLAP = "OVERLAP"
+
+    _rename = {"CONTAINS": _INCLUDES}
+
+    _reverse = {
+        _BEFORE: _AFTER,
+        _AFTER: _BEFORE,
+        _INCLUDES: _IS_INCLUDED,
+        _IS_INCLUDED: _INCLUDES,
+        _OVERLAP: _OVERLAP}
+
+    _transitivity = {
+        _BEFORE: {
+            _BEFORE: _BEFORE,
+            _AFTER: None,
+            _INCLUDES: _BEFORE,
+            _IS_INCLUDED: None,
+            _OVERLAP: None},
+        _AFTER: {
+            _AFTER: _AFTER,
+            _BEFORE: None,
+            _INCLUDES: _AFTER,
+            _IS_INCLUDED: None,
+            _OVERLAP: None},
+        _INCLUDES: {
+            _BEFORE: None,
+            _AFTER: None,
+            _INCLUDES: _INCLUDES,
+            _IS_INCLUDED: _OVERLAP,
+            _OVERLAP: _OVERLAP},
+        _IS_INCLUDED: {
+            _BEFORE: _BEFORE,
+            _AFTER: _AFTER,
+            _INCLUDES: None,
+            _IS_INCLUDED: _IS_INCLUDED,
+            _OVERLAP: None},
+        _OVERLAP: {
+            _BEFORE: None,
+            _AFTER: None,
+            _INCLUDES: None,
+            _IS_INCLUDED: _OVERLAP,
+            _OVERLAP: None},
+    }
 
 class _OverlappingWrapper(object):
     def __init__(self, annotation, seen=None):
@@ -175,6 +255,8 @@ class _OverlappingSpans(object):
         return "{0}({1})".format(self.__class__.__name__, self.spans)
 
 
+_AnnotationView = collections.namedtuple("AnnotationView", ["spans", "name", "value"])
+
 def _group_by(reference_iterable, predicted_iterable, key_function):
     result = collections.defaultdict(lambda: (set(), set()))
     for iterable, index in [(reference_iterable, 0), (predicted_iterable, 1)]:
@@ -211,20 +293,18 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                 return False
         return True
 
-    AnnotationView = collections.namedtuple("AnnotationView", ["spans", "name", "value"])
-
     def _views(annotations):
         views = set()
         for ann in annotations:
             spans = ann.spans
             if _accept(ann.type, "<span>"):
-                views.add(AnnotationView(spans, (ann.type, "<span>"), None))
+                views.add(_AnnotationView(spans, (ann.type, "<span>"), None))
             for view_name in ann.properties:
                 view_value = ann.properties[view_name]
                 if _accept(ann.type, view_name):
-                    views.add(AnnotationView(spans, (ann.type, view_name), view_value))
+                    views.add(_AnnotationView(spans, (ann.type, view_name), view_value))
                 if _accept(ann.type, view_name, view_value) and isinstance(view_value, basestring):
-                    views.add(AnnotationView(spans, (ann.type, view_name, view_value), view_value))
+                    views.add(_AnnotationView(spans, (ann.type, view_name, view_value), view_value))
         return views
 
     result = collections.defaultdict(lambda: scores_type())

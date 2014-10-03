@@ -463,13 +463,16 @@ def test_score_data_overlap():
 
 
 def test_temporal_closure_scores():
-    Annotation = collections.namedtuple("Annotation", ["spans", "relation"])
+
+    def annotation(source, target, value):
+        return anafora.eval._AnnotationView((source, target), None, value)
+
     reference = {
-        Annotation(("A", "B"), "BEFORE"),
-        Annotation(("B", "C"), "IS_INCLUDED"),
-        Annotation(("D", "C"), "INCLUDES"),
-        Annotation(("E", "D"), "CONTAINS"),
-        Annotation(("F", "E"), "AFTER"),
+        annotation("A", "B", "BEFORE"),
+        annotation("B", "C", "IS_INCLUDED"),
+        annotation("D", "C", "INCLUDES"),
+        annotation("E", "D", "CONTAINS"),
+        annotation("F", "E", "AFTER"),
         # inferred:
         # A before B
         # A before F
@@ -485,10 +488,10 @@ def test_temporal_closure_scores():
         # E before F
     }
     predicted = {
-        Annotation(("A", "B"), "BEFORE"),   # (+)
-        Annotation(("B", "E"), "CONTAINS"), # (-)
-        Annotation(("B", "F"), "BEFORE"),   # (+)
-        Annotation(("F", "D"), "AFTER"),    # (+)
+        annotation("A", "B", "BEFORE"),   # (+)
+        annotation("B", "E", "CONTAINS"), # (-)
+        annotation("B", "F", "BEFORE"),   # (+)
+        annotation("F", "D", "AFTER"),    # (+)
         # inferred:
         # (+) A before B
         # ( ) A before E
