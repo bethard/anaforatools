@@ -473,6 +473,8 @@ def test_temporal_closure_scores():
         annotation("D", "C", "INCLUDES"),
         annotation("E", "D", "CONTAINS"),
         annotation("F", "E", "AFTER"),
+        annotation("G", "H", "BEGINS-ON"),
+        annotation("I", "G", "BEFORE"),
         # inferred:
         # A before B
         # A before F
@@ -486,12 +488,16 @@ def test_temporal_closure_scores():
         # E includes C
         # E includes D
         # E before F
+        # G simultaneous-start H
+        # I before G
+        # I before H
     }
     predicted = {
         annotation("A", "B", "BEFORE"),   # (+)
         annotation("B", "E", "CONTAINS"), # (-)
         annotation("B", "F", "BEFORE"),   # (+)
         annotation("F", "D", "AFTER"),    # (+)
+        annotation("H", "I", "AFTER"),    # (+)
         # inferred:
         # (+) A before B
         # ( ) A before E
@@ -500,8 +506,9 @@ def test_temporal_closure_scores():
         # ( ) B before F
         # ( ) D before F
         # (+) E before F
+        # ( ) G after I
     }
     scores = anafora.eval.TemporalClosureScores()
     scores.add(reference, predicted)
-    assert scores.precision() == 3.0 / 4.0
-    assert scores.recall() ==  2.0 / 5.0
+    assert scores.precision() == 4.0 / 5.0
+    assert scores.recall() ==  2.0 / 7.0

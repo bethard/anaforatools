@@ -154,15 +154,19 @@ class TemporalClosureScores(object):
     _INCLUDES = "INCLUDES"
     _IS_INCLUDED = "IS_INCLUDED"
     _OVERLAP = "OVERLAP"
+    _SIMULTANEOUS_START = "SIMULTANEOUS_START"
+    _SIMULTANEOUS_END = "SIMULTANEOUS_END"
 
-    _rename = {"CONTAINS": _INCLUDES}
+    _rename = {"CONTAINS": _INCLUDES, "BEGINS-ON": _SIMULTANEOUS_START, "ENDS-ON": _SIMULTANEOUS_END}
 
     _reverse = {
         _BEFORE: _AFTER,
         _AFTER: _BEFORE,
         _INCLUDES: _IS_INCLUDED,
         _IS_INCLUDED: _INCLUDES,
-        _OVERLAP: _OVERLAP}
+        _OVERLAP: _OVERLAP,
+        _SIMULTANEOUS_START: _SIMULTANEOUS_START,
+        _SIMULTANEOUS_END: _SIMULTANEOUS_END}
 
     _transitivity = {
         _BEFORE: {
@@ -170,31 +174,57 @@ class TemporalClosureScores(object):
             _AFTER: None,
             _INCLUDES: _BEFORE,
             _IS_INCLUDED: None,
-            _OVERLAP: None},
+            _OVERLAP: None,
+            _SIMULTANEOUS_START: _BEFORE,
+            _SIMULTANEOUS_END: None},
         _AFTER: {
             _AFTER: _AFTER,
             _BEFORE: None,
             _INCLUDES: _AFTER,
             _IS_INCLUDED: None,
-            _OVERLAP: None},
+            _OVERLAP: None,
+            _SIMULTANEOUS_START: None,
+            _SIMULTANEOUS_END: _AFTER},
         _INCLUDES: {
             _BEFORE: None,
             _AFTER: None,
             _INCLUDES: _INCLUDES,
             _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: _OVERLAP},
+            _OVERLAP: _OVERLAP,
+            _SIMULTANEOUS_START: _OVERLAP,
+            _SIMULTANEOUS_END: _OVERLAP},
         _IS_INCLUDED: {
             _BEFORE: _BEFORE,
             _AFTER: _AFTER,
             _INCLUDES: None,
             _IS_INCLUDED: _IS_INCLUDED,
-            _OVERLAP: None},
+            _OVERLAP: None,
+            _SIMULTANEOUS_START: None,
+            _SIMULTANEOUS_END: None},
         _OVERLAP: {
             _BEFORE: None,
             _AFTER: None,
             _INCLUDES: None,
             _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: None},
+            _OVERLAP: None,
+            _SIMULTANEOUS_START: None,
+            _SIMULTANEOUS_END: None},
+        _SIMULTANEOUS_START: {
+            _BEFORE: None,
+            _AFTER: _AFTER,
+            _INCLUDES: None,
+            _IS_INCLUDED: _OVERLAP,
+            _OVERLAP: _OVERLAP,
+            _SIMULTANEOUS_START: _SIMULTANEOUS_START,
+            _SIMULTANEOUS_END: None},
+        _SIMULTANEOUS_END: {
+            _BEFORE: _BEFORE,
+            _AFTER: None,
+            _INCLUDES: None,
+            _IS_INCLUDED: _OVERLAP,
+            _OVERLAP: _OVERLAP,
+            _SIMULTANEOUS_START: None,
+            _SIMULTANEOUS_END: _SIMULTANEOUS_END},
     }
 
 class _OverlappingWrapper(object):
@@ -490,6 +520,7 @@ if __name__ == "__main__":
     parser.add_argument("--predicted-dir")
     parser.add_argument("--text-dir")
     parser.add_argument("--debug", action="store_const", const=DebuggingScores, dest="scores_type")
+    parser.add_argument("--temporal-closure", action="store_const", const=TemporalClosureScores, dest="scores_type")
     parser.add_argument("--include", nargs="+", type=split_tuple_on_colons)
     parser.add_argument("--exclude", nargs="+", type=split_tuple_on_colons)
     parser.add_argument("--overlap", dest="annotation_wrapper", action="store_const", const=_OverlappingWrapper)
