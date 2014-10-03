@@ -124,26 +124,25 @@ class TemporalClosureScores(object):
         return _AnnotationView(annotation.spans, annotation.name, value)
 
     def _closure(self, annotations):
-        old_result = set()
-        result = set(annotations)
-        for annotation in annotations:
-            result.add(self._reversed(annotation))
-        while len(old_result) != len(result):
-            old_result = result
-            result = set(result)
-            for annotation1 in old_result:
+        result = set()
+        new_annotations = set(annotations)
+        while new_annotations:
+            result.update(new_annotations)
+            for annotation in new_annotations:
+                result.add(self._reversed(annotation))
+            new_annotations = set()
+            for annotation1 in result:
                 (source1, target1) = annotation1.spans
-                value1 = annotation1.value
-                for annotation2 in old_result:
+                transitivity1 = self._transitivity[annotation1.value]
+                for annotation2 in result:
                     if annotation2 is not annotation1 and annotation2.name == annotation1.name:
                         (source2, target2) = annotation2.spans
-                        if target1 == source2:
-                            value2 = annotation2.value
-                            value3 = self._transitivity[value1][value2]
+                        if target1 == source2 and source1 != target2:
+                            value3 = transitivity1[annotation2.value]
                             if value3 is not None:
                                 annotation3 = _AnnotationView((source1, target2), annotation1.name, value3)
-                                result.add(annotation3)
-                                result.add(self._reversed(annotation3))
+                                if annotation3 not in result:
+                                    new_annotations.add(annotation3)
         return result
 
     def _reversed(self, annotation):
