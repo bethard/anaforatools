@@ -485,21 +485,21 @@ if __name__ == "__main__":
         return result[0] if len(result) == 1 else result
 
     parser = argparse.ArgumentParser()
+    parser.set_defaults(scores_type=Scores)
     parser.add_argument("--reference-dir", required=True)
     parser.add_argument("--predicted-dir")
     parser.add_argument("--text-dir")
-    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--debug", action="store_const", const=DebuggingScores, dest="scores_type")
     parser.add_argument("--include", nargs="+", type=split_tuple_on_colons)
     parser.add_argument("--exclude", nargs="+", type=split_tuple_on_colons)
     parser.add_argument("--overlap", dest="annotation_wrapper", action="store_const", const=_OverlappingWrapper)
     parser.add_argument("--xml-name-regex", default="[.]xml$")
     args = parser.parse_args()
     basic_config_kwargs = {"format": "%(levelname)s:%(message)s"}
-    if args.debug:
+    if args.scores_type == DebuggingScores:
         basic_config_kwargs["level"] = logging.DEBUG
     logging.basicConfig(**basic_config_kwargs)
 
-    _scores_type = DebuggingScores if args.debug else Scores
     if args.predicted_dir is not None:
         _print_scores(score_dirs(
             reference_dir=args.reference_dir,
@@ -507,7 +507,7 @@ if __name__ == "__main__":
             text_dir=args.text_dir,
             include=args.include,
             exclude=args.exclude,
-            scores_type=_scores_type,
+            scores_type=args.scores_type,
             annotation_wrapper=args.annotation_wrapper))
     else:
         _print_scores(score_annotators(
@@ -515,5 +515,5 @@ if __name__ == "__main__":
             xml_name_regex=args.xml_name_regex,
             include=args.include,
             exclude=args.exclude,
-            scores_type=_scores_type,
+            scores_type=args.scores_type,
             annotation_wrapper=args.annotation_wrapper))
