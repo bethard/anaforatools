@@ -76,14 +76,18 @@ class TemporalClosureScores(object):
         self.precision_correct = 0
         self.recall_correct = 0
 
+    @property
+    def correct(self):
+        return (self.precision_correct, self.recall_correct)
+
     def add(self, reference, predicted):
         """
         :param set reference: the reference annotations
         :param set predicted: the predicted annotations
         :return tuple: (annotations only in reference, annotations only predicted)
         """
-        reference = set(map(self._normalize, reference))
-        predicted = set(map(self._normalize, predicted))
+        reference = {self._normalize(a) for a in reference if self._is_valid(a)}
+        predicted = {self._normalize(a) for a in predicted if self._is_valid(a)}
         self.reference += len(reference)
         self.predicted += len(predicted)
         self.precision_correct += len(self._closure(reference) & predicted)
@@ -111,13 +115,21 @@ class TemporalClosureScores(object):
             self.__class__.__name__, self.reference, self.predicted, self.precision_correct, self.recall_correct
         )
 
-    def _normalize(self, annotation):
+    def _is_valid(self, annotation):
         if not isinstance(annotation, _AnnotationView):
-            raise RuntimeError("TemporalClosureScores requires an _AnnotationView")
+            raise RuntimeError("temporal closure cannot be applied to {0}".format(annotation))
         try:
             (source, target) = annotation.spans
         except ValueError:
-            raise RuntimeError("TemporalClosureScores requires an 2-tuple for spans")
+            logging.warning("invalid spans for temporal closure {0}".format(annotation))
+            return False
+        else:
+            if annotation.value not in self._rename and annotation.value not in self._transitivity:
+                logging.warning("invalid relation for temporal closure {0}".format(annotation))
+                return False
+            return True
+
+    def _normalize(self, annotation):
         value = annotation.value
         if value in self._rename:
             value = self._rename[value]
