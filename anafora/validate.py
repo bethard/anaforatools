@@ -101,12 +101,12 @@ class SchemaProperty(object):
             self.choices = None
 
 
-def log_schema_errors(schema, anafora_dir):
+def log_schema_errors(schema, anafora_dir, xml_name_regex):
     """
     :param Schema schema: the schema to validate against
     :param string anafora_dir: the Anafora directory containing directories to validate
     """
-    for sub_dir, text_name, xml_names in anafora.walk(anafora_dir):
+    for sub_dir, text_name, xml_names in anafora.walk(anafora_dir, xml_name_regex):
         for xml_name in xml_names:
             xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
             try:
@@ -131,11 +131,11 @@ def find_entities_with_identical_spans(data):
             yield span, annotations
 
 
-def log_entities_with_identical_spans(anafora_dir):
+def log_entities_with_identical_spans(anafora_dir, xml_name_regex):
     """
     :param AnaforaData data: the Anafora data to be searched
     """
-    for sub_dir, text_name, xml_names in anafora.walk(anafora_dir):
+    for sub_dir, text_name, xml_names in anafora.walk(anafora_dir, xml_name_regex):
         for xml_name in xml_names:
             xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
             try:
@@ -152,8 +152,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--schema", required=True)
     parser.add_argument("--anafora-dir", required=True)
+    parser.add_argument("--xml-name-regex", default="[.]xml$")
     args = parser.parse_args()
     logging.basicConfig(format="%(levelname)s:%(message)s")
 
-    log_schema_errors(Schema.from_file(args.schema), args.anafora_dir)
-    log_entities_with_identical_spans(args.anafora_dir)
+    log_schema_errors(Schema.from_file(args.schema), args.anafora_dir, args.xml_name_regex)
+    log_entities_with_identical_spans(args.anafora_dir, args.xml_name_regex)
