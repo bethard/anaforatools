@@ -36,38 +36,38 @@ def test_schema_validate():
     entity1.type = "X"
     entity1.properties["A"] = "x"
     data.annotations.append(entity1)
-    assert schema.errors(data) != []
+    assert schema.errors(data)
     entity1.properties["B"] = "y"
-    assert schema.errors(data) != []
+    assert schema.errors(data)
     entity1.properties["C"] = "z"
-    assert schema.errors(data) != []
+    assert schema.errors(data)
     entity2 = anafora.AnaforaEntity()
     entity2.id = "@2@"
     entity2.type = "X"
     data.annotations.append(entity2)
     entity1.properties["C"] = entity2
-    assert schema.errors(data) != []
+    assert schema.errors(data)
     entity2.type = "Y"
-    assert schema.errors(data) == []
+    assert not schema.errors(data)
     entity1.properties["A"] = "y"
-    assert schema.errors(data) == []
+    assert not schema.errors(data)
     entity1.properties["A"] = "z"
-    assert schema.errors(data) != []
+    assert schema.errors(data)
     entity1.properties["A"] = "x"
-    assert schema.errors(data) == []
+    assert not schema.errors(data)
 
     relation = anafora.AnaforaRelation()
     relation.id = "@3@"
     relation.type = ""
     data.annotations.append(relation)
-    assert schema.errors(data) != []
+    assert schema.errors(data)
     relation.type = "R"
-    assert schema.errors(data) == []
+    assert not schema.errors(data)
     relation.properties["D"] = entity1
-    assert schema.errors(data) == []
+    assert not schema.errors(data)
     relation.properties["E"] = entity1
-    assert schema.errors(data) != []
+    assert schema.errors(data)
     relation.properties["E"] = entity2
-    assert schema.errors(data) == []
+    assert not schema.errors(data)
     relation.properties["X"] = "Y"
-    assert schema.errors(data) != []
+    assert schema.errors(data)
