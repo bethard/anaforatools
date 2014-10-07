@@ -59,24 +59,24 @@ class Schema(object):
         """
         schema_properties = self.type_to_properties.get(annotation.type)
         if schema_properties is None:
-            return 'invalid type "{0}"'.format(annotation.type)
+            return 'invalid type {0!r}'.format(annotation.type)
         for schema_property in schema_properties.values():
             if schema_property.required and not schema_property.type in annotation.properties:
-                return 'missing required property "{0}"'.format(schema_property.type)
+                return 'missing required property {0!r}'.format(schema_property.type)
         for name, value in annotation.properties.items():
             if name not in schema_properties:
-                return 'no property "{0}" defined for type "{1}"'.format(name, annotation.type)
+                return 'no property {0!r} defined for type {1!r}'.format(name, annotation.type)
             schema_property = schema_properties[name]
             if schema_property.instance_of is not None:
                 if not isinstance(value, anafora.AnaforaAnnotation):
-                    return 'invalid value {0} for property "{1}"'.format(value, schema_property.type)
+                    return 'invalid value {0!r} for property {1!r}'.format(value, schema_property.type)
                 if not value.type in schema_property.instance_of:
-                    return 'invalid type "{0}" for property "{1}"'.format(value.type, schema_property.type)
+                    return 'invalid type {0!r} for property {1!r}'.format(value.type, schema_property.type)
             if schema_property.choices is not None:
                 if isinstance(value, anafora.AnaforaAnnotation):
-                    return 'invalid value {0} for property "{1}"'.format(value, schema_property.type)
+                    return 'invalid value {0!r} for property {1!r}'.format(value, schema_property.type)
                 elif value not in schema_property.choices:
-                    return 'invalid value {0} for property "{1}"'.format(value, schema_property.type)
+                    return 'invalid value {0!r} for property {1!r}'.format(value, schema_property.type)
         return None
 
 
