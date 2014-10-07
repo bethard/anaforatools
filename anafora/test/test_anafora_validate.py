@@ -11,7 +11,7 @@ def test_schema_validate():
             <entities>
                 <entity type="X">
                         <properties>
-                                <property type="A" />
+                                <property type="A" input="choice">x,y</property>
                                 <property type="B" />
                                 <property type="C" instanceOf="Y,Z" />
                         </properties>
@@ -49,6 +49,13 @@ def test_schema_validate():
     assert schema.errors(data) != []
     entity2.type = "Y"
     assert schema.errors(data) == []
+    entity1.properties["A"] = "y"
+    assert schema.errors(data) == []
+    entity1.properties["A"] = "z"
+    assert schema.errors(data) != []
+    entity1.properties["A"] = "x"
+    assert schema.errors(data) == []
+
     relation = anafora.AnaforaRelation()
     relation.id = "@3@"
     relation.type = ""

@@ -72,6 +72,11 @@ class Schema(object):
                     return 'invalid value {0} for property "{1}"'.format(value, schema_property.type)
                 if not value.type in schema_property.instance_of:
                     return 'invalid type "{0}" for property "{1}"'.format(value.type, schema_property.type)
+            if schema_property.choices is not None:
+                if isinstance(value, anafora.AnaforaAnnotation):
+                    return 'invalid value {0} for property "{1}"'.format(value, schema_property.type)
+                elif value not in schema_property.choices:
+                    return 'invalid value {0} for property "{1}"'.format(value, schema_property.type)
         return None
 
 
@@ -90,6 +95,10 @@ class SchemaProperty(object):
         self.instance_of = get("instanceOf", None)
         if self.instance_of is not None:
             self.instance_of = self.instance_of.split(",")
+        if get("input", None) == "choice":
+            self.choices = xml.text.split(",")
+        else:
+            self.choices = None
 
 
 def log_schema_errors(schema, anafora_dir):
