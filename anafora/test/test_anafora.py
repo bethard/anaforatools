@@ -99,6 +99,35 @@ def test_remove():
     assert str(data) == '<data><annotations /></data>'
 
 
+def test_spans():
+    data = anafora.AnaforaData(anafora.ElementTree.fromstring('''
+        <data>
+            <annotations>
+                <relation>
+                    <id>1</id>
+                    <type>R1</type>
+                    <properties>
+                        <relation>2</relation>
+                    </properties>
+                </relation>
+                <relation>
+                    <id>2</id>
+                    <type>R2</type>
+                    <properties>
+                        <entity>3</entity>
+                    </properties>
+                </relation>
+                <entity>
+                    <id>3</id>
+                    <type>E1</type>
+                    <span>5,7</span>
+                </entity>
+            </annotations>
+        </data>'''))
+    assert data.annotations.select_id("1").spans == ((((5, 7),),),)
+    assert data.annotations.select_id("2").spans == (((5, 7),),)
+    assert data.annotations.select_id("3").spans == ((5, 7),)
+
 
 def test_recursive_entity():
     data = anafora.AnaforaData()

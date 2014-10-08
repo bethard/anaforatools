@@ -289,4 +289,4 @@ class AnaforaRelation(AnaforaAnnotation):
         return tuple(
             self.properties[name].spans
             for name in sorted(self.properties)
-            if isinstance(self.properties[name], AnaforaEntity))
+            if isinstance(self.properties[name], AnaforaAnnotation))
