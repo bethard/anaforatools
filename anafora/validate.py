@@ -40,6 +40,38 @@ class Schema(object):
     def from_file(cls, xml_path):
         return cls(anafora.ElementTree.parse(xml_path).getroot())
 
+    def validate(self, annotation):
+        """
+        :param AnaforaAnnotation annotation: the annotation to be validated
+        """
+        schema_properties = self.type_to_properties.get(annotation.type)
+        if schema_properties is None:
+            msg = 'invalid annotation type {0!r}'
+            raise SchemaValidationError(msg.format(annotation.type))
+        for schema_property in schema_properties.values():
+            if schema_property.required and not schema_property.type in annotation.properties:
+                msg = 'missing required property {0!r} of annotation type {1!r}'
+                raise SchemaValidationError(msg.format(schema_property.type, annotation.type))
+        for name, value in annotation.properties.items():
+            if name not in schema_properties:
+                msg = 'no property {0!r} defined for annotation type {1!r}'
+                raise SchemaValidationError(msg.format(name, annotation.type))
+            schema_property = schema_properties[name]
+            if schema_property.instance_of is not None:
+                if not isinstance(value, anafora.AnaforaAnnotation):
+                    msg = 'invalid value {0!r} for property {1!r} of annotation type {2!r}'
+                    raise SchemaValidationError(msg.format(value, schema_property.type, annotation.type))
+                if not value.type in schema_property.instance_of:
+                    msg = 'invalid type {0!r} for property {1!r} of annotation type {2!r}'
+                    raise SchemaValidationError(msg.format(value.type, schema_property.type, annotation.type))
+            if schema_property.choices is not None:
+                if isinstance(value, anafora.AnaforaAnnotation):
+                    msg = 'invalid value {0!r} for property {1!r} of annotation type {2!r}'
+                    raise SchemaValidationError(msg.format(value, schema_property.type, annotation.type))
+                elif value not in schema_property.choices:
+                    msg = 'invalid value {0!r} for property {1!r} of annotation type {2!r}'
+                    raise SchemaValidationError(msg.format(value, schema_property.type, annotation.type))
+
     def errors(self, data):
         """
         :param AnaforaData data: the data to be validated
@@ -47,37 +79,11 @@ class Schema(object):
         """
         errors = []
         for annotation in data.annotations:
-            error = self._first_error(annotation)
-            if error is not None:
-                errors.append((annotation, error))
+            try:
+                self.validate(annotation)
+            except SchemaValidationError, error:
+                errors.append((annotation, error.message))
         return errors
-
-    def _first_error(self, annotation):
-        """
-        :param AnaforaAnnotation annotation: one annotation from an AnaforaData
-        :return: an explanation string if the annotation is invalid, otherwise None
-        """
-        schema_properties = self.type_to_properties.get(annotation.type)
-        if schema_properties is None:
-            return 'invalid type {0!r}'.format(annotation.type)
-        for schema_property in schema_properties.values():
-            if schema_property.required and not schema_property.type in annotation.properties:
-                return 'missing required property {0!r}'.format(schema_property.type)
-        for name, value in annotation.properties.items():
-            if name not in schema_properties:
-                return 'no property {0!r} defined for type {1!r}'.format(name, annotation.type)
-            schema_property = schema_properties[name]
-            if schema_property.instance_of is not None:
-                if not isinstance(value, anafora.AnaforaAnnotation):
-                    return 'invalid value {0!r} for property {1!r}'.format(value, schema_property.type)
-                if not value.type in schema_property.instance_of:
-                    return 'invalid type {0!r} for property {1!r}'.format(value.type, schema_property.type)
-            if schema_property.choices is not None:
-                if isinstance(value, anafora.AnaforaAnnotation):
-                    return 'invalid value {0!r} for property {1!r}'.format(value, schema_property.type)
-                elif value not in schema_property.choices:
-                    return 'invalid value {0!r} for property {1!r}'.format(value, schema_property.type)
-        return None
 
 
 class SchemaProperty(object):
@@ -99,6 +105,10 @@ class SchemaProperty(object):
             self.choices = xml.text.split(",")
         else:
             self.choices = None
+
+
+class SchemaValidationError(RuntimeError):
+    pass
 
 
 def log_schema_errors(schema, anafora_dir, xml_name_regex):
