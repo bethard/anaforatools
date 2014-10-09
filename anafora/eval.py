@@ -157,8 +157,77 @@ class TemporalClosureScores(object):
                                     new_annotations.add(annotation3)
         return result
 
+    def _point_closure(self, annotations):
+        # TODO: replace interval closure with this and test thoroughly
+        start = self._start
+        end = self._end
+        point_relations = set()
+        new_relations = set()
+        for annotation in annotations:
+            interval1, interval2 = annotation.spans
+            new_relations.add(((interval1, start), "<", (interval1, end)))
+            new_relations.add(((interval2, start), "<", (interval2, end)))
+            for point1, relation, point2 in self._interval_to_point[annotation.value]:
+                new_relations.add(((interval1, point1), relation, (interval2, point2)))
+            for point2, relation, point1 in self._interval_to_point[self._reverse[annotation.value]]:
+                new_relations.add(((interval2, point2), relation, (interval1, point1)))
+        while new_relations:
+            point_relations.update(new_relations)
+            new_relations = set()
+            for point1, relation12, point2 in point_relations:
+                for point2x, relation23, point3 in point_relations:
+                    if point2 == point2x:
+                        relation13 = self._point_transitions[relation12][relation23]
+                        if relation13 is not None:
+                            new_relation = (point1, relation13, point3)
+                            if new_relation not in point_relations:
+                                new_relations.add(new_relation)
+        result = set()
+        intervals = set()
+        for annotation in annotations:
+            for span in annotation.spans:
+                intervals.add((annotation.name, span))
+        for name1, interval1 in sorted(intervals):
+            for name2, interval2 in sorted(intervals):
+                if interval1 != interval2 and name1 == name2:
+                    for relation, requirements in self._interval_to_point.items():
+                        if all(((interval1, p1), r, (interval2, p2)) in point_relations for p1, r, p2 in requirements):
+                            annotation = _AnnotationView((interval1, interval2), name1, relation)
+                            result.add(annotation)
+        return result
+
+
+
     def _reversed(self, annotation):
         return _AnnotationView(annotation.spans[::-1], annotation.name, self._reverse[annotation.value])
+
+    _start = 0
+    _end = 1
+    _interval_to_point = {
+        "BEFORE": [(_end, "<", _start)],
+        "AFTER": [(_start, ">", _end)],
+        "IBEFORE": [(_end, "=", _start)],
+        "IAFTER": [(_start, "=", _end)],
+        "CONTAINS": [(_start, "<", _start), (_end, ">", _end)],
+        "INCLUDES": [(_start, "<", _start), (_end, ">", _end)],
+        "IS_INCLUDED": [(_start, ">", _start), (_end, "<", _end)],
+        "BEGINS-ON": [(_start, "=", _start)],
+        "ENDS-ON": [(_end, "=", _end)],
+        "BEGINS": [(_start, "=", _start), (_end, "<", _end)],
+        "BEGUN_BY": [(_start, "=", _start), (_end, ">", _end)],
+        "ENDS":  [(_start, ">", _start), (_end, "=", _end)],
+        "ENDED_BY":  [(_start, "<", _start), (_end, "=", _end)],
+        "SIMULTANEOUS": [(_start, "=", _start), (_end, "=", _end)],
+        "IDENTITY": [(_start, "=", _start), (_end, "=", _end)],
+        "DURING": [(_start, "=", _start), (_end, "=", _end)],
+        "DURING_INV": [(_start, "=", _start), (_end, "=", _end)],
+        "OVERLAP": [(_start, "<", _end), (_end, ">", _start)],
+    }
+    _point_transitions = {
+        "<": {"<": "<", "=": "<", ">": None},
+        ">": {"<": None, "=": ">", ">": ">"},
+        "=": {"<": "<", "=": "=", ">": ">"},
+    }
 
 
     _BEFORE = "BEFORE"
