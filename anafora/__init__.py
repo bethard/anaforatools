@@ -103,7 +103,7 @@ class AnaforaData(_XMLWrapper):
         _indent(self.xml)
 
     def to_file(self, xml_path):
-        ElementTree.ElementTree(self.xml).write(xml_path)
+        ElementTree.ElementTree(self.xml).write(xml_path, encoding="UTF-8", xml_declaration=True)
 
 
 
