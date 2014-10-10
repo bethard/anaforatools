@@ -86,8 +86,8 @@ class TemporalClosureScores(object):
         :param set predicted: the predicted annotations
         :return tuple: (annotations only in reference, annotations only predicted)
         """
-        reference = {self._normalize(a) for a in reference if self._is_valid(a)}
-        predicted = {self._normalize(a) for a in predicted if self._is_valid(a)}
+        reference = {a for a in reference if self._is_valid(a)}
+        predicted = {a for a in predicted if self._is_valid(a)}
         self.reference += len(reference)
         self.predicted += len(predicted)
         self.precision_correct += len(self._closure(reference) & predicted)
@@ -124,53 +124,27 @@ class TemporalClosureScores(object):
             logging.warning("invalid spans for temporal closure {0}".format(annotation))
             return False
         else:
-            if annotation.value not in self._rename and annotation.value not in self._transitivity:
+            if annotation.value not in self._interval_to_point:
                 logging.warning("invalid relation for temporal closure {0}".format(annotation))
                 return False
             return True
 
-    def _normalize(self, annotation):
-        value = annotation.value
-        if value in self._rename:
-            value = self._rename[value]
-        return _AnnotationView(annotation.spans, annotation.name, value)
-
     def _closure(self, annotations):
-        result = set()
-        new_annotations = set(annotations)
-        while new_annotations:
-            result.update(new_annotations)
-            for annotation in new_annotations:
-                result.add(self._reversed(annotation))
-            new_annotations = set()
-            for annotation1 in result:
-                (source1, target1) = annotation1.spans
-                transitivity1 = self._transitivity[annotation1.value]
-                for annotation2 in result:
-                    if annotation2 is not annotation1 and annotation2.name == annotation1.name:
-                        (source2, target2) = annotation2.spans
-                        if target1 == source2 and source1 != target2:
-                            value3 = transitivity1[annotation2.value]
-                            if value3 is not None:
-                                annotation3 = _AnnotationView((source1, target2), annotation1.name, value3)
-                                if annotation3 not in result:
-                                    new_annotations.add(annotation3)
-        return result
-
-    def _point_closure(self, annotations):
-        # TODO: replace interval closure with this and test thoroughly
         start = self._start
         end = self._end
         point_relations = set()
         new_relations = set()
         for annotation in annotations:
-            interval1, interval2 = annotation.spans
+            intervals = annotation.spans
+            interval1, interval2 = intervals
             new_relations.add(((interval1, start), "<", (interval1, end)))
             new_relations.add(((interval2, start), "<", (interval2, end)))
-            for point1, relation, point2 in self._interval_to_point[annotation.value]:
-                new_relations.add(((interval1, point1), relation, (interval2, point2)))
-            for point2, relation, point1 in self._interval_to_point[self._reverse[annotation.value]]:
-                new_relations.add(((interval2, point2), relation, (interval1, point1)))
+            for index1, side1, relation, index2, side2 in self._interval_to_point[annotation.value]:
+                point1 = (intervals[index1], side1)
+                point2 = (intervals[index2], side2)
+                new_relations.add((point1, relation, point2))
+                if relation == "=":
+                    new_relations.add((point2, relation, point1))
         while new_relations:
             point_relations.update(new_relations)
             new_relations = set()
@@ -187,306 +161,42 @@ class TemporalClosureScores(object):
         for annotation in annotations:
             for span in annotation.spans:
                 intervals.add((annotation.name, span))
-        for name1, interval1 in sorted(intervals):
-            for name2, interval2 in sorted(intervals):
+        for name1, interval1 in intervals:
+            for name2, interval2 in intervals:
                 if interval1 != interval2 and name1 == name2:
+                    pair = (interval1, interval2)
                     for relation, requirements in self._interval_to_point.items():
-                        if all(((interval1, p1), r, (interval2, p2)) in point_relations for p1, r, p2 in requirements):
-                            annotation = _AnnotationView((interval1, interval2), name1, relation)
-                            result.add(annotation)
+                        if all(((pair[i1], s1), r, (pair[i2], s2)) in point_relations
+                               for i1, s1, r, i2, s2 in requirements):
+                            result.add(_AnnotationView((interval1, interval2), name1, relation))
         return result
-
-
-
-    def _reversed(self, annotation):
-        return _AnnotationView(annotation.spans[::-1], annotation.name, self._reverse[annotation.value])
 
     _start = 0
     _end = 1
     _interval_to_point = {
-        "BEFORE": [(_end, "<", _start)],
-        "AFTER": [(_start, ">", _end)],
-        "IBEFORE": [(_end, "=", _start)],
-        "IAFTER": [(_start, "=", _end)],
-        "CONTAINS": [(_start, "<", _start), (_end, ">", _end)],
-        "INCLUDES": [(_start, "<", _start), (_end, ">", _end)],
-        "IS_INCLUDED": [(_start, ">", _start), (_end, "<", _end)],
-        "BEGINS-ON": [(_start, "=", _start)],
-        "ENDS-ON": [(_end, "=", _end)],
-        "BEGINS": [(_start, "=", _start), (_end, "<", _end)],
-        "BEGUN_BY": [(_start, "=", _start), (_end, ">", _end)],
-        "ENDS":  [(_start, ">", _start), (_end, "=", _end)],
-        "ENDED_BY":  [(_start, "<", _start), (_end, "=", _end)],
-        "SIMULTANEOUS": [(_start, "=", _start), (_end, "=", _end)],
-        "IDENTITY": [(_start, "=", _start), (_end, "=", _end)],
-        "DURING": [(_start, "=", _start), (_end, "=", _end)],
-        "DURING_INV": [(_start, "=", _start), (_end, "=", _end)],
-        "OVERLAP": [(_start, "<", _end), (_end, ">", _start)],
+        "BEFORE": [(0, _end, "<", 1, _start)],
+        "AFTER": [(1, _end, "<", 0, _start)],
+        "IBEFORE": [(0, _end, "=", 1, _start)],
+        "IAFTER": [(0, _start, "=", 1, _end)],
+        "CONTAINS": [(0, _start, "<", 1, _start), (1, _end, "<", 0, _end)],
+        "INCLUDES": [(0, _start, "<", 1, _start), (1, _end, "<", 0, _end)],
+        "IS_INCLUDED": [(1, _start, "<", 0, _start), (0, _end, "<", 1, _end)],
+        "BEGINS-ON": [(0, _start, "=", 1, _start)],
+        "ENDS-ON": [(0, _end, "=", 1, _end)],
+        "BEGINS": [(0, _start, "=", 1, _start), (0, _end, "<", 1, _end)],
+        "BEGUN_BY": [(0, _start, "=", 1, _start), (1, _end, "<", 0, _end)],
+        "ENDS":  [(1, _start, "<", 0, _start), (0, _end, "=", 1, _end)],
+        "ENDED_BY":  [(0, _start, "<", 1, _start), (0, _end, "=", 1, _end)],
+        "SIMULTANEOUS": [(0, _start, "=", 1, _start), (0, _end, "=", 1, _end)],
+        "IDENTITY": [(0, _start, "=", 1, _start), (0, _end, "=", 1, _end)],
+        "DURING": [(0, _start, "=", 1, _start), (0, _end, "=", 1, _end)],
+        "DURING_INV": [(0, _start, "=", 1, _start), (0, _end, "=", 1, _end)],
+        "OVERLAP": [(0, _start, "<", 1, _end), (1, _start, "<", 0, _end)],
     }
     _point_transitions = {
-        "<": {"<": "<", "=": "<", ">": None},
-        ">": {"<": None, "=": ">", ">": ">"},
-        "=": {"<": "<", "=": "=", ">": ">"},
+        "<": {"<": "<", "=": "<"},
+        "=": {"<": "<", "=": "="},
     }
-
-
-    _BEFORE = "BEFORE"
-    _AFTER = "AFTER"
-    _IMMEDIATELY_BEFORE = "IBEFORE"
-    _IMMEDIATELY_AFTER = "IAFTER"
-    _INCLUDES = "INCLUDES"
-    _IS_INCLUDED = "IS_INCLUDED"
-    _OVERLAP = "OVERLAP"
-    _BEGINS = "BEGINS"
-    _BEGUN_BY = "BEGUN_BY"
-    _ENDS = "ENDS"
-    _ENDED_BY = "ENDED_BY"
-    _SIMULTANEOUS = "SIMULTANEOUS"
-    _SIMULTANEOUS_START = "SIMULTANEOUS_START"
-    _SIMULTANEOUS_END = "SIMULTANEOUS_END"
-
-    _rename = {
-        "CONTAINS": _INCLUDES,
-        "BEGINS-ON": _SIMULTANEOUS_START,
-        "ENDS-ON": _SIMULTANEOUS_END,
-        "IDENTITY": _SIMULTANEOUS,
-        "DURING": _SIMULTANEOUS,
-        "DURING_INV": _SIMULTANEOUS,
-    }
-
-    _reverse = {
-        _BEFORE: _AFTER,
-        _AFTER: _BEFORE,
-        _IMMEDIATELY_BEFORE: _IMMEDIATELY_AFTER,
-        _IMMEDIATELY_AFTER: _IMMEDIATELY_BEFORE,
-        _INCLUDES: _IS_INCLUDED,
-        _IS_INCLUDED: _INCLUDES,
-        _OVERLAP: _OVERLAP,
-        _BEGINS: _BEGUN_BY,
-        _BEGUN_BY: _BEGINS,
-        _ENDS: _ENDED_BY,
-        _ENDED_BY: _ENDS,
-        _SIMULTANEOUS: _SIMULTANEOUS,
-        _SIMULTANEOUS_START: _SIMULTANEOUS_START,
-        _SIMULTANEOUS_END: _SIMULTANEOUS_END}
-
-    _transitivity = {
-        _BEFORE: {
-            _BEFORE: _BEFORE,
-            _AFTER: None,
-            _IMMEDIATELY_BEFORE: _BEFORE,
-            _IMMEDIATELY_AFTER: None,
-            _INCLUDES: _BEFORE,
-            _IS_INCLUDED: None,
-            _OVERLAP: None,
-            _BEGINS: _BEFORE,
-            _BEGUN_BY: _BEFORE,
-            _ENDS: None,
-            _ENDED_BY: _BEFORE,
-            _SIMULTANEOUS: _BEFORE,
-            _SIMULTANEOUS_START: _BEFORE,
-            _SIMULTANEOUS_END: None},
-        _AFTER: {
-            _BEFORE: None,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: None,
-            _IMMEDIATELY_AFTER: _AFTER,
-            _INCLUDES: _AFTER,
-            _IS_INCLUDED: None,
-            _OVERLAP: None,
-            _BEGINS: None,
-            _BEGUN_BY: _AFTER,
-            _ENDS: _AFTER,
-            _ENDED_BY: _AFTER,
-            _SIMULTANEOUS: _AFTER,
-            _SIMULTANEOUS_START: None,
-            _SIMULTANEOUS_END: _AFTER},
-        _IMMEDIATELY_BEFORE: {
-            _BEFORE: _BEFORE,
-            _AFTER: None,
-            _IMMEDIATELY_BEFORE: _BEFORE,
-            _IMMEDIATELY_AFTER: None,
-            _INCLUDES: _BEFORE,
-            _IS_INCLUDED: None,
-            _OVERLAP: None,
-            _BEGINS: _IMMEDIATELY_BEFORE,
-            _BEGUN_BY: _IMMEDIATELY_BEFORE,
-            _ENDS: None,
-            _ENDED_BY: _BEFORE,
-            _SIMULTANEOUS: _IMMEDIATELY_BEFORE,
-            _SIMULTANEOUS_START: _IMMEDIATELY_BEFORE,
-            _SIMULTANEOUS_END: None},
-        _IMMEDIATELY_AFTER: {
-            _BEFORE: None,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: None,
-            _IMMEDIATELY_AFTER: _AFTER,
-            _INCLUDES: _AFTER,
-            _IS_INCLUDED: None,
-            _OVERLAP: None,
-            _BEGINS: None,
-            _BEGUN_BY: _AFTER,
-            _ENDS: _IMMEDIATELY_AFTER,
-            _ENDED_BY: _IMMEDIATELY_AFTER,
-            _SIMULTANEOUS: _IMMEDIATELY_AFTER,
-            _SIMULTANEOUS_START: None,
-            _SIMULTANEOUS_END: _IMMEDIATELY_AFTER},
-        _INCLUDES: {
-            _BEFORE: None,
-            _AFTER: None,
-            _IMMEDIATELY_BEFORE: _OVERLAP,
-            _IMMEDIATELY_AFTER: _OVERLAP,
-            _INCLUDES: _INCLUDES,
-            _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: _OVERLAP,
-            _BEGINS: _OVERLAP,
-            _BEGUN_BY: _INCLUDES,
-            _ENDS: _OVERLAP,
-            _ENDED_BY: _INCLUDES,
-            _SIMULTANEOUS: _INCLUDES,
-            _SIMULTANEOUS_START: _OVERLAP,
-            _SIMULTANEOUS_END: _OVERLAP},
-        _IS_INCLUDED: {
-            _BEFORE: _BEFORE,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: _BEFORE,
-            _IMMEDIATELY_AFTER: _AFTER,
-            _INCLUDES: None,
-            _IS_INCLUDED: _IS_INCLUDED,
-            _OVERLAP: None,
-            _BEGINS: _IS_INCLUDED,
-            _BEGUN_BY: None,
-            _ENDS: _IS_INCLUDED,
-            _ENDED_BY: None,
-            _SIMULTANEOUS: _IS_INCLUDED,
-            _SIMULTANEOUS_START: None,
-            _SIMULTANEOUS_END: None},
-        _OVERLAP: {
-            _BEFORE: None,
-            _AFTER: None,
-            _IMMEDIATELY_BEFORE: None,
-            _IMMEDIATELY_AFTER: None,
-            _INCLUDES: None,
-            _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: None,
-            _BEGINS: _OVERLAP,
-            _BEGUN_BY: None,
-            _ENDS: _OVERLAP,
-            _ENDED_BY: None,
-            _SIMULTANEOUS: _OVERLAP,
-            _SIMULTANEOUS_START: None,
-            _SIMULTANEOUS_END: None},
-        _BEGINS: {
-            _BEFORE: _BEFORE,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: _BEFORE,
-            _IMMEDIATELY_AFTER: _IMMEDIATELY_AFTER,
-            _INCLUDES: None,
-            _IS_INCLUDED: _IS_INCLUDED,
-            _OVERLAP: None,
-            _BEGINS: _BEGINS,
-            _BEGUN_BY: _SIMULTANEOUS_START,
-            _ENDS: _OVERLAP,
-            _ENDED_BY: None,
-            _SIMULTANEOUS: _BEGINS,
-            _SIMULTANEOUS_START: _SIMULTANEOUS_START,
-            _SIMULTANEOUS_END: None},
-        _BEGUN_BY: {
-            _BEFORE: None,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: _OVERLAP,
-            _IMMEDIATELY_AFTER: _IMMEDIATELY_AFTER,
-            _INCLUDES: _INCLUDES,
-            _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: _OVERLAP,
-            _BEGINS: _SIMULTANEOUS_START,
-            _BEGUN_BY: _BEGUN_BY,
-            _ENDS: _OVERLAP,
-            _ENDED_BY: _INCLUDES,
-            _SIMULTANEOUS: _BEGUN_BY,
-            _SIMULTANEOUS_START: _SIMULTANEOUS_START,
-            _SIMULTANEOUS_END: _OVERLAP},
-        _ENDS: {
-            _BEFORE: _BEFORE,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: _IMMEDIATELY_BEFORE,
-            _IMMEDIATELY_AFTER: _AFTER,
-            _INCLUDES: None,
-            _IS_INCLUDED: _IS_INCLUDED,
-            _OVERLAP: None,
-            _BEGINS: _OVERLAP,
-            _BEGUN_BY: None,
-            _ENDS: _ENDS,
-            _ENDED_BY: _SIMULTANEOUS_END,
-            _SIMULTANEOUS: _ENDS,
-            _SIMULTANEOUS_START: None,
-            _SIMULTANEOUS_END: _SIMULTANEOUS_END},
-        _ENDED_BY: {
-            _BEFORE: _BEFORE,
-            _AFTER: None,
-            _IMMEDIATELY_BEFORE: _IMMEDIATELY_BEFORE,
-            _IMMEDIATELY_AFTER: _OVERLAP,
-            _INCLUDES: _INCLUDES,
-            _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: _OVERLAP,
-            _BEGINS: _OVERLAP,
-            _BEGUN_BY: _INCLUDES,
-            _ENDS: _SIMULTANEOUS_END,
-            _ENDED_BY: _ENDED_BY,
-            _SIMULTANEOUS: _ENDED_BY,
-            _SIMULTANEOUS_START: _OVERLAP,
-            _SIMULTANEOUS_END: _SIMULTANEOUS_END},
-        _SIMULTANEOUS: {
-            _BEFORE: _BEFORE,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: _IMMEDIATELY_BEFORE,
-            _IMMEDIATELY_AFTER: _IMMEDIATELY_AFTER,
-            _INCLUDES: _INCLUDES,
-            _IS_INCLUDED: _IS_INCLUDED,
-            _OVERLAP: _OVERLAP,
-            _BEGINS: _BEGINS,
-            _BEGUN_BY: _BEGUN_BY,
-            _ENDS: _ENDS,
-            _ENDED_BY: _ENDED_BY,
-            _SIMULTANEOUS: _SIMULTANEOUS,
-            _SIMULTANEOUS_START: _SIMULTANEOUS_START,
-            _SIMULTANEOUS_END: _SIMULTANEOUS_END},
-        _SIMULTANEOUS_START: {
-            _BEFORE: None,
-            _AFTER: _AFTER,
-            _IMMEDIATELY_BEFORE: None,
-            _IMMEDIATELY_AFTER: _IMMEDIATELY_AFTER,
-            _INCLUDES: None,
-            _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: _OVERLAP,
-            _BEGINS: _SIMULTANEOUS_START,
-            _BEGUN_BY: _SIMULTANEOUS_START,
-            _ENDS: _OVERLAP,
-            _ENDED_BY: None,
-            _SIMULTANEOUS: _SIMULTANEOUS_START,
-            _SIMULTANEOUS_START: _SIMULTANEOUS_START,
-            _SIMULTANEOUS_END: None},
-        _SIMULTANEOUS_END: {
-            _BEFORE: _BEFORE,
-            _AFTER: None,
-            _IMMEDIATELY_BEFORE: _IMMEDIATELY_BEFORE,
-            _IMMEDIATELY_AFTER: None,
-            _INCLUDES: None,
-            _IS_INCLUDED: _OVERLAP,
-            _OVERLAP: _OVERLAP,
-            _BEGINS: _OVERLAP,
-            _BEGUN_BY: None,
-            _ENDS: _SIMULTANEOUS_END,
-            _ENDED_BY: _SIMULTANEOUS_END,
-            _SIMULTANEOUS: _SIMULTANEOUS_END,
-            _SIMULTANEOUS_START: None,
-            _SIMULTANEOUS_END: _SIMULTANEOUS_END},
-    }
-    # sanity check
-    for _value in _transitivity.values():
-        if set(_transitivity.keys()) != set(_value.keys()):
-            msg = "incomplete transitivity table: expected {0}, found {1}"
-            raise RuntimeError(msg.format(sorted(_transitivity.keys()), sorted(_value.keys())))
 
 class _OverlappingWrapper(object):
     def __init__(self, annotation, seen=None):
