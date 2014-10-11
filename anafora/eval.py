@@ -132,7 +132,6 @@ class TemporalClosureScores(object):
     def _closure(self, annotations):
         start = self._start
         end = self._end
-        point_relations = set()
         new_relations = set()
         for annotation in annotations:
             intervals = annotation.spans
@@ -145,17 +144,20 @@ class TemporalClosureScores(object):
                 new_relations.add((point1, relation, point2))
                 if relation == "=":
                     new_relations.add((point2, relation, point1))
+        point_relations = set()
+        point_relations_index = collections.defaultdict(set)
         while new_relations:
             point_relations.update(new_relations)
+            for point_relation in new_relations:
+                point_relations_index[point_relation[0]].add(point_relation)
             new_relations = set()
             for point1, relation12, point2 in point_relations:
-                for point2x, relation23, point3 in point_relations:
-                    if point2 == point2x:
-                        relation13 = self._point_transitions[relation12][relation23]
-                        if relation13 is not None:
-                            new_relation = (point1, relation13, point3)
-                            if new_relation not in point_relations:
-                                new_relations.add(new_relation)
+                for _, relation23, point3 in point_relations_index[point2]:
+                    relation13 = self._point_transitions[relation12][relation23]
+                    if relation13 is not None:
+                        new_relation = (point1, relation13, point3)
+                        if new_relation not in point_relations:
+                            new_relations.add(new_relation)
         result = set()
         intervals = set()
         for annotation in annotations:
