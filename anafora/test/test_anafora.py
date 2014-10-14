@@ -135,9 +135,24 @@ def test_recursive_entity():
     entity1.id = "@1@"
     data.annotations.append(entity1)
     entity1.properties["self"] = entity1
-    entity2 = anafora.AnaforaEntity()
-    entity2.id = "@2@"
-    data.annotations.append(entity2)
-    entity2.properties["self"] = entity2
-    assert hash(entity1) == hash(entity2)
-    assert entity1 == entity2
+    assert entity1.is_self_referential()
+
+
+def test_sort():
+    data = anafora.AnaforaData(anafora.ElementTree.fromstring('''
+        <data>
+            <annotations>
+                <entity>
+                    <id>1</id>
+                    <type>E</type>
+                    <span>5,7</span>
+                </entity>
+                <entity>
+                    <id>2</id>
+                    <type>E</type>
+                    <span>3,4</span>
+                </entity>
+            </annotations>
+        </data>'''))
+    assert [a.id for a in sorted(data.annotations)] == ['2', '1']
+

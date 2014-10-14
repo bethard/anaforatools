@@ -224,10 +224,21 @@ class _OverlappingWrapper(object):
         return self.spans, self.type, self.parents_type, self.properties
 
     def __eq__(self, other):
-        return self._key() == other._key()
+        return (
+            isinstance(other, _OverlappingWrapper) and
+            self.spans == other.spans and
+            self.type == other.type and
+            self.parents_type == other.parents_type and
+            self.properties == other.properties)
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __hash__(self):
-        return hash(anafora._to_frozensets(self))
+        result = 0
+        for item in self.properties.iteritems():
+            result += hash(item)
+        return result
 
     def __repr__(self):
         return "{0}({1})".format(self.__class__.__name__, self.annotation)
@@ -246,6 +257,9 @@ class _OverlappingSpans(object):
                 if self_start < other_end and other_start < self_end:
                     return True
         return False
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __hash__(self):
         return 0

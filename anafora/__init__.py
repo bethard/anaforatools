@@ -30,7 +30,6 @@ def walk(root, xml_name_regex="[.]xml$"):
                 yield sub_dir, text_name, xml_names
 
 
-@functools.total_ordering
 class _XMLWrapper(object):
     def __init__(self, xml):
         """
@@ -39,35 +38,7 @@ class _XMLWrapper(object):
         self.xml = xml
 
     def __repr__(self):
-        return ElementTree.tostring(self.xml)
-
-    def _key(self):
-        raise NotImplementedError
-
-    def __eq__(self, other):
-        return isinstance(other, _XMLWrapper) and _to_frozensets(self) == _to_frozensets(other)
-
-    def __hash__(self):
-        return hash(_to_frozensets(self))
-
-    def __lt__(self, other):
-        return self._key() < other._key()
-
-
-def _to_frozensets(obj, seen_ids=None):
-    if seen_ids is None:
-        seen_ids = set()
-    if id(obj) in seen_ids:
-        return None
-    seen_ids.add(id(obj))
-    if isinstance(obj, (set, tuple, list)):
-        return frozenset(_to_frozensets(item, seen_ids) for item in obj)
-    elif isinstance(obj, dict):
-        return frozenset(_to_frozensets(item, seen_ids) for item in obj.items())
-    elif hasattr(obj, "_key"):
-        return frozenset(_to_frozensets(item, seen_ids) for item in obj._key())
-    else:
-        return obj
+        return ElementTree.tostring(self.xml) if self.xml is not None else '{0}()'.format(self.__class__.__name__)
 
 
 class AnaforaData(_XMLWrapper):
@@ -104,7 +75,6 @@ class AnaforaData(_XMLWrapper):
 
     def to_file(self, xml_path):
         ElementTree.ElementTree(self.xml).write(xml_path, encoding="UTF-8", xml_declaration=True)
-
 
 
 class AnaforaAnnotations(_XMLWrapper):
@@ -157,6 +127,7 @@ class AnaforaAnnotations(_XMLWrapper):
         return itertools.ifilter(lambda a: a.type == type_name, self)
 
 
+@functools.total_ordering
 class AnaforaAnnotation(_XMLWrapper):
     def __init__(self, xml, _annotations):
         """
@@ -167,8 +138,26 @@ class AnaforaAnnotation(_XMLWrapper):
         self._annotations = _annotations
         self.properties = AnaforaProperties(self.xml.find("properties"), self)
 
-    def _key(self):
-        return self.spans, self.type, self.parents_type, self.properties
+    def __eq__(self, other):
+        return (
+            isinstance(other, AnaforaAnnotation) and
+            self.spans == other.spans and
+            self.type == other.type and
+            self.parents_type == other.parents_type and
+            self.properties == other.properties)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        result = hash(self.spans)
+        result = 31 * result + hash(self.type)
+        result = 31 * result + hash(self.parents_type)
+        result = 31 * result + hash(self.properties)
+        return result
+
+    def __lt__(self, other):
+        return self.spans < other.spans
 
     @property
     def id(self):
@@ -207,6 +196,18 @@ class AnaforaAnnotation(_XMLWrapper):
     def spans(self):
         raise NotImplementedError
 
+    def is_self_referential(self, seen_ids=None):
+        if seen_ids is None:
+            seen_ids = set()
+        seen_ids.add(id(self))
+        for name in self.properties:
+            value = self.properties[name]
+            if id(value) in seen_ids:
+                return True
+            if isinstance(value, AnaforaAnnotation):
+                if value.is_self_referential(seen_ids):
+                    return True
+        return False
 
 class AnaforaProperties(_XMLWrapper):
     def __init__(self, xml, _annotation):
@@ -221,8 +222,30 @@ class AnaforaProperties(_XMLWrapper):
             for property_elem in self.xml:
                 self._tag_to_property_xml[property_elem.tag] = property_elem
 
-    def _key(self):
-        return self.items()
+    def __eq__(self, other):
+        if not isinstance(other, AnaforaProperties):
+            return False
+        for name in self:
+            self_value = self[name]
+            if name not in other._tag_to_property_xml:
+                return False
+            other_value = other[name]
+            if self_value != other_value:
+                return False
+        for name in other:
+            if name not in self._tag_to_property_xml:
+                return False
+        return True
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        result = 0
+        for name in self:
+            result += hash(name)
+            result += hash(self[name])
+        return result
 
     def __iter__(self):
         return iter(self._tag_to_property_xml)
