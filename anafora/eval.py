@@ -384,6 +384,11 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
             reference_xml_name = reference_xml_names[0]
         reference_xml_path = os.path.join(reference_dir, sub_dir, reference_xml_name)
         reference_data = _load(reference_xml_path)
+        self_reference = reference_data.annotations.find_self_referential()
+        if self_reference is not None:
+            msg = "skipping reference file %s with self-referential annotation %s"
+            logging.warn(msg, reference_xml_path, self_reference.id)
+            continue
 
         predicted_xml_glob = os.path.join(predicted_dir, sub_dir, text_name + "*.xml")
         predicted_xml_paths = glob.glob(predicted_xml_glob)
@@ -393,9 +398,16 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
         except ValueError:
             logging.warn("expected one predicted file at %s, found %s", predicted_xml_glob, predicted_xml_paths)
             if not predicted_xml_paths:
+                predicted_xml_path = None
                 predicted_data = anafora.AnaforaData()
             else:
-                predicted_data = _load(predicted_xml_paths[0])
+                predicted_xml_path = predicted_xml_paths[0]
+                predicted_data = _load(predicted_xml_path)
+        self_reference = predicted_data.annotations.find_self_referential()
+        if self_reference is not None:
+            msg = "skipping predicted file %s with self-referential annotation %s"
+            logging.warn(msg, predicted_xml_path, self_reference.id)
+            predicted_data = anafora.AnaforaData()
 
         if text_dir is None:
             text_path = os.path.join(reference_dir, sub_dir, text_name)
