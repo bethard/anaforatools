@@ -50,7 +50,7 @@ class RegexAnnotator(object):
             return cls(regex_type_attributes_map)
 
     @classmethod
-    def train(cls, text_data_pairs):
+    def train(cls, text_data_pairs, min_count=None):
         ddict = collections.defaultdict
         text_type_map = ddict(lambda: collections.Counter())
         text_type_attrib_map = ddict(lambda: ddict(lambda: ddict(lambda: collections.Counter())))
@@ -72,11 +72,12 @@ class RegexAnnotator(object):
         predictions = {}
         for text, entity_types in text_type_map.items():
             [(entity_type, _)] = entity_types.most_common(1)
-            attrib = {}
-            for name, values in text_type_attrib_map[text][entity_type].items():
-                [(value, _)] = values.most_common(1)
-                attrib[name] = value
-            predictions[text] = (entity_type, attrib)
+            if min_count is None or entity_types[entity_type] >= min_count:
+                attrib = {}
+                for name, values in text_type_attrib_map[text][entity_type].items():
+                    [(value, _)] = values.most_common(1)
+                    attrib[name] = value
+                predictions[text] = (entity_type, attrib)
         return cls(predictions)
 
     def __init__(self, regex_type_attributes_map):
@@ -140,11 +141,11 @@ class RegexAnnotator(object):
                 write('\n')
 
 
-def _train(train_dir, model_file, train_text_dir=None, text_encoding="utf-8", min_precision=None):
+def _train(train_dir, model_file, text_dir=None, text_encoding="utf-8", min_count=None, min_precision=None):
     def text_data_pairs():
         for sub_dir, text_name, xml_names in anafora.walk(train_dir):
-            if train_text_dir is not None:
-                text_path = os.path.join(train_text_dir, text_name)
+            if text_dir is not None:
+                text_path = os.path.join(text_dir, text_name)
             else:
                 text_path = os.path.join(train_dir, sub_dir, text_name)
             if not os.path.exists(text_path):
@@ -156,7 +157,7 @@ def _train(train_dir, model_file, train_text_dir=None, text_encoding="utf-8", mi
                 data = anafora.AnaforaData.from_file(os.path.join(train_dir, sub_dir, xml_name))
                 yield text, data
 
-    model = RegexAnnotator.train(text_data_pairs())
+    model = RegexAnnotator.train(text_data_pairs(), min_count)
     if min_precision is not None:
         model.prune_by_precision(min_precision, text_data_pairs())
     model.to_file(model_file)
@@ -194,18 +195,19 @@ if __name__ == "__main__":
     train_parser = subparsers.add_parser("train")
     train_parser.set_defaults(func=_train)
     train_parser.add_argument("--train-dir", required=True)
-    train_parser.add_argument("--train-text-dir")
-    train_parser.add_argument("--text-encoding", default="utf-8")
-    train_parser.add_argument("--min-precision", type=float)
     train_parser.add_argument("--model-file", required=True)
+    train_parser.add_argument("--text-dir")
+    train_parser.add_argument("--text-encoding", default="utf-8")
+    train_parser.add_argument("--min-count", type=int)
+    train_parser.add_argument("--min-precision", type=float)
 
     annotate_parser = subparsers.add_parser("annotate")
     annotate_parser.set_defaults(func=_annotate)
     annotate_parser.add_argument("--model-file", required=True)
+    annotate_parser.add_argument("--output-dir", required=True)
     annotate_parser.add_argument("--text-dir", required=True)
     annotate_parser.add_argument("--text-dir-structure", choices={"anafora", "flat"}, default="flat")
     annotate_parser.add_argument("--text-encoding", default="utf-8")
-    annotate_parser.add_argument("--output-dir", required=True)
 
     args = parser.parse_args()
     kwargs = vars(args)
