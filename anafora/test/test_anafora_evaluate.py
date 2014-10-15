@@ -1,7 +1,7 @@
 import collections
 
 import anafora
-import anafora.eval
+import anafora.evaluate
 
 
 def test_score_data():
@@ -87,7 +87,7 @@ def test_score_data():
         </annotations>
     </data>
     """))
-    named_scores = anafora.eval.score_data(reference, predicted)
+    named_scores = anafora.evaluate.score_data(reference, predicted)
     assert set(named_scores.keys()) == {
         "X", ("X", "<span>"),
         "Y", ("Y", "<span>"),
@@ -143,7 +143,7 @@ def test_score_data():
     assert scores.reference == 1
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, exclude=["X", "Y"])
+    named_scores = anafora.evaluate.score_data(reference, predicted, exclude=["X", "Y"])
     assert set(named_scores.keys()) == {
         ("Z"), ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
@@ -181,21 +181,21 @@ def test_score_data():
     assert scores.reference == 1
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, include=[("Z", "Prop1", "T")])
+    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "T")])
     assert set(named_scores.keys()) == {("Z", "Prop1", "T")}
     scores = named_scores["Z", "Prop1", "T"]
     assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, include=[("Z", "Prop1", "F")])
+    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "F")])
     assert set(named_scores.keys()) == {("Z", "Prop1", "F")}
     scores = named_scores["Z", "Prop1", "F"]
     assert scores.correct == 0
     assert scores.reference == 0
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")])
+    named_scores = anafora.evaluate.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")])
     assert set(named_scores.keys()) == {
         "Z", ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
@@ -315,7 +315,7 @@ def test_score_data_overlap():
         </annotations>
     </data>
     """))
-    named_scores = anafora.eval.score_data(reference, predicted, annotation_wrapper=anafora.eval._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(reference, predicted, annotation_wrapper=anafora.evaluate._OverlappingWrapper)
     assert set(named_scores.keys()) == {
         "X", ("X", "<span>"),
         "Y", ("Y", "<span>"),
@@ -371,8 +371,8 @@ def test_score_data_overlap():
     assert scores.reference == 1
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, exclude=["X", "Y"],
-                                           annotation_wrapper=anafora.eval._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(reference, predicted, exclude=["X", "Y"],
+                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
     assert set(named_scores.keys()) == {
         ("Z"), ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
@@ -410,24 +410,24 @@ def test_score_data_overlap():
     assert scores.reference == 1
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, include=[("Z", "Prop1", "T")],
-                                           annotation_wrapper=anafora.eval._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "T")],
+                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
     assert set(named_scores.keys()) == {("Z", "Prop1", "T")}
     scores = named_scores["Z", "Prop1", "T"]
     assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, include=[("Z", "Prop1", "F")],
-                                           annotation_wrapper=anafora.eval._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "F")],
+                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
     assert set(named_scores.keys()) == {("Z", "Prop1", "F")}
     scores = named_scores["Z", "Prop1", "F"]
     assert scores.correct == 0
     assert scores.reference == 0
     assert scores.predicted == 1
 
-    named_scores = anafora.eval.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")],
-                                           annotation_wrapper=anafora.eval._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")],
+                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
     assert set(named_scores.keys()) == {
         "Z", ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
@@ -465,7 +465,7 @@ def test_score_data_overlap():
 def test_temporal_closure_scores():
 
     def annotation(source, target, value):
-        return anafora.eval._AnnotationView((source, target), None, value)
+        return anafora.evaluate._AnnotationView((source, target), None, value)
 
     reference = {
         annotation("A", "B", "BEFORE"),
@@ -515,7 +515,7 @@ def test_temporal_closure_scores():
         # (+) K begun-by L
         # (+) J i-before K
     }
-    scores = anafora.eval.TemporalClosureScores()
+    scores = anafora.evaluate.TemporalClosureScores()
     scores.add(reference, predicted)
     assert scores.precision() == 6.0 / 7.0
     assert scores.recall() ==  4.0 / 9.0

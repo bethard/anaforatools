@@ -10,7 +10,7 @@ import os
 import regex
 
 import anafora
-import anafora.eval
+import anafora.evaluate
 
 
 class RegexAnnotator(object):
@@ -107,7 +107,7 @@ class RegexAnnotator(object):
             data.annotations.append(entity)
 
     def prune_by_precision(self, min_precision, text_data_pairs):
-        pattern_scores = collections.defaultdict(lambda: anafora.eval.Scores())
+        pattern_scores = collections.defaultdict(lambda: anafora.evaluate.Scores())
         for text, data in text_data_pairs:
             reference_type_spans_map = collections.defaultdict(lambda: set())
             for annotation in data.annotations:
