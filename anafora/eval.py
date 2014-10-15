@@ -129,21 +129,42 @@ class TemporalClosureScores(object):
                 return False
             return True
 
-    def _closure(self, annotations):
+
+    def _to_point_relations(self, annotations):
         start = self._start
         end = self._end
-        new_relations = set()
+        point_relations = set()
         for annotation in annotations:
             intervals = annotation.spans
             interval1, interval2 = intervals
-            new_relations.add(((interval1, start), "<", (interval1, end)))
-            new_relations.add(((interval2, start), "<", (interval2, end)))
+            point_relations.add(((interval1, start), "<", (interval1, end)))
+            point_relations.add(((interval2, start), "<", (interval2, end)))
             for index1, side1, relation, index2, side2 in self._interval_to_point[annotation.value]:
                 point1 = (intervals[index1], side1)
                 point2 = (intervals[index2], side2)
-                new_relations.add((point1, relation, point2))
+                point_relations.add((point1, relation, point2))
                 if relation == "=":
-                    new_relations.add((point2, relation, point1))
+                    point_relations.add((point2, relation, point1))
+        return point_relations
+
+    def _to_interval_relations(self, point_relations, annotations):
+        interval_relations = set()
+        intervals = set()
+        for annotation in annotations:
+            for span in annotation.spans:
+                intervals.add((annotation.name, span))
+        for name1, interval1 in intervals:
+            for name2, interval2 in intervals:
+                if interval1 != interval2 and name1 == name2:
+                    pair = (interval1, interval2)
+                    for relation, requirements in self._interval_to_point.items():
+                        if all(((pair[i1], s1), r, (pair[i2], s2)) in point_relations
+                               for i1, s1, r, i2, s2 in requirements):
+                            interval_relations.add(_AnnotationView((interval1, interval2), name1, relation))
+        return interval_relations
+
+    def _closure(self, annotations):
+        new_relations = self._to_point_relations(annotations)
         point_relations = set()
         point_relations_index = collections.defaultdict(set)
         while new_relations:
@@ -158,20 +179,7 @@ class TemporalClosureScores(object):
                         new_relation = (point1, relation13, point3)
                         if new_relation not in point_relations:
                             new_relations.add(new_relation)
-        result = set()
-        intervals = set()
-        for annotation in annotations:
-            for span in annotation.spans:
-                intervals.add((annotation.name, span))
-        for name1, interval1 in intervals:
-            for name2, interval2 in intervals:
-                if interval1 != interval2 and name1 == name2:
-                    pair = (interval1, interval2)
-                    for relation, requirements in self._interval_to_point.items():
-                        if all(((pair[i1], s1), r, (pair[i2], s2)) in point_relations
-                               for i1, s1, r, i2, s2 in requirements):
-                            result.add(_AnnotationView((interval1, interval2), name1, relation))
-        return result
+        return self._to_interval_relations(point_relations, annotations)
 
     _start = 0
     _end = 1
