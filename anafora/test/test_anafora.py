@@ -131,11 +131,32 @@ def test_spans():
 
 def test_recursive_entity():
     data = anafora.AnaforaData()
-    entity1 = anafora.AnaforaEntity()
-    entity1.id = "@1@"
-    data.annotations.append(entity1)
-    entity1.properties["self"] = entity1
-    assert entity1.is_self_referential()
+    entity = anafora.AnaforaEntity()
+    entity.id = "@1@"
+    data.annotations.append(entity)
+    entity.properties["self"] = entity
+    assert entity.is_self_referential()
+    assert data.annotations.find_self_referential().id == entity.id
+
+    data = anafora.AnaforaData()
+    a = anafora.AnaforaEntity()
+    a.id = "A"
+    data.annotations.append(a)
+    b = anafora.AnaforaEntity()
+    b.id = "B"
+    data.annotations.append(b)
+    c = anafora.AnaforaEntity()
+    c.id = "C"
+    data.annotations.append(c)
+    d = anafora.AnaforaEntity()
+    d.id = "D"
+    data.annotations.append(d)
+    b.properties["x"] = a
+    c.properties["y"] = a
+    d.properties["1"] = b
+    d.properties["2"] = c
+    assert not d.is_self_referential()
+
 
 
 def test_sort():

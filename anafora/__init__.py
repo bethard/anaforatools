@@ -126,6 +126,11 @@ class AnaforaAnnotations(_XMLWrapper):
     def select_type(self, type_name):
         return itertools.ifilter(lambda a: a.type == type_name, self)
 
+    def find_self_referential(self):
+        for annotation in self:
+            if annotation.is_self_referential():
+                return annotation
+
 
 @functools.total_ordering
 class AnaforaAnnotation(_XMLWrapper):
@@ -198,14 +203,14 @@ class AnaforaAnnotation(_XMLWrapper):
 
     def is_self_referential(self, seen_ids=None):
         if seen_ids is None:
-            seen_ids = set()
-        seen_ids.add(id(self))
+            seen_ids = {}
+        seen_ids[id(self)] = self
         for name in self.properties:
             value = self.properties[name]
-            if id(value) in seen_ids:
+            if seen_ids is not None and id(value) in seen_ids:
                 return True
             if isinstance(value, AnaforaAnnotation):
-                if value.is_self_referential(seen_ids):
+                if value.is_self_referential(dict(seen_ids)):
                     return True
         return False
 
