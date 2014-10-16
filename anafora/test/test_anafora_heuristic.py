@@ -69,3 +69,9 @@ def test_relation_to_closest():
     data = anafora.AnaforaData(get_xml())
     anafora.heuristic.add_relations_to_closest(data, "X", "Y", "Z", "source", "target", {"foo": "bar"})
     assert set(data.annotations.select_type("Z")) == {z1, z2, z3}
+
+    # make sure it doesn't fail with 0 source and 0 target annotations
+    data = anafora.AnaforaData(get_xml())
+    anafora.heuristic.add_relations_to_closest(data, "A", "Y", "Z", "source", "target")
+    data = anafora.AnaforaData(get_xml())
+    anafora.heuristic.add_relations_to_closest(data, "X", "B", "Z", "source", "target")
