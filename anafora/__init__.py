@@ -12,8 +12,9 @@ except ImportError:
 
 def walk(root, xml_name_regex="[.]xml$"):
     """
-    :param path: directory containing Anafora XML directories
-    :return tuple: an iterator of (sub-dir, text-file-name, xml-file-names) where sub-dir is the path to the Anafora
+    :param root: directory containing Anafora XML directories
+    :param str xml_name_regex: regular expression identifying .xml files to include
+    :return iterator: an iterator of (sub-dir, text-file-name, xml-file-names) where sub-dir is the path to the Anafora
         directory relative to root, text-file-name is the name of the Anafora text file, and xml-file-names is a list
         of names of Anafora XML files
     """
@@ -28,6 +29,25 @@ def walk(root, xml_name_regex="[.]xml$"):
             if xml_names:
                 text_name = os.path.basename(dir_path)
                 yield sub_dir, text_name, xml_names
+
+
+def walk_anafora_to_anafora(root, xml_name_regex="[.]xml$"):
+    """
+    :param str root: path of the root directory to be walked
+    :param str xml_name_regex: regular expression identifying .xml files to include
+    :return iterator: an iterator of (input-sub-dir, output-sub-dir, text-file-name, xml-file-names)
+    """
+    for sub_dir, text_name, xml_names in walk(root, xml_name_regex):
+        yield sub_dir, sub_dir, text_name, xml_names
+
+
+def walk_flat_to_anafora(text_dir):
+    """
+    :param str text_dir: path to a directory of text files (and no subdirectories)
+    :return iterator: an iterator of (input-sub-dir, output-sub-dir, text-file-name, xml-file-names)
+    """
+    for file_name in os.listdir(text_dir):
+        yield '', file_name, file_name, []
 
 
 class _XMLWrapper(object):

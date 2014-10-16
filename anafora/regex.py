@@ -163,16 +163,9 @@ def _train(train_dir, model_file, text_dir=None, text_encoding="utf-8", min_coun
     model.to_file(model_file)
 
 
-def _annotate(model_file, text_dir, output_dir, text_dir_structure="flat", text_encoding="utf-8"):
+def _annotate(model_file, text_dir, output_dir, get_iterator, text_encoding="utf-8"):
     model = RegexAnnotator.from_file(model_file)
-    if text_dir_structure == "flat":
-        walk_iter = (('', file_name, file_name) for file_name in os.listdir(text_dir))
-    elif text_dir_structure == "anafora":
-        walk_iter = ((sub_dir, sub_dir, text_name) for sub_dir, text_name, _ in anafora.walk(text_dir))
-    else:
-        raise ValueError("unsupported text dir structure: " + text_dir_structure)
-
-    for input_sub_dir, output_sub_dir, text_name in walk_iter:
+    for input_sub_dir, output_sub_dir, text_name, _ in get_iterator(text_dir):
         text_path = os.path.join(text_dir, input_sub_dir, text_name)
         with codecs.open(text_path, 'r', text_encoding) as text_file:
             text = text_file.read()
@@ -206,9 +199,15 @@ if __name__ == "__main__":
     annotate_parser.add_argument("--model-file", required=True)
     annotate_parser.add_argument("--output-dir", required=True)
     annotate_parser.add_argument("--text-dir", required=True)
-    annotate_parser.add_argument("--text-dir-structure", choices={"anafora", "flat"}, default="flat")
+    structures = {
+        "anafora": anafora.walk_anafora_to_anafora,
+        "flat": anafora.walk_flat_to_anafora,
+    }
+    annotate_parser.add_argument("--text-dir-structure", choices=structures, default="flat")
     annotate_parser.add_argument("--text-encoding", default="utf-8")
 
     args = parser.parse_args()
     kwargs = vars(args)
+    if 'text_dir_structure' in kwargs:
+        kwargs['get_iterator'] = structures[kwargs.pop('text_dir_structure')]
     kwargs.pop("func")(**kwargs)
