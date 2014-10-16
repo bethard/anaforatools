@@ -528,15 +528,25 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.set_defaults(scores_type=Scores)
-    parser.add_argument("--reference-dir", required=True)
-    parser.add_argument("--predicted-dir")
-    parser.add_argument("--text-dir")
-    parser.add_argument("--debug", action="store_const", const=DebuggingScores, dest="scores_type")
+    parser.add_argument("-r", "--reference-dir", metavar="DIR", required=True,
+                        help="The root of a set of Anafora XML directories representing reference annotations")
+    parser.add_argument("-p", "--predicted-dir", metavar="DIR",
+                        help="The root of a set of Anafora XML directories representing system-predicted annotations")
+    parser.add_argument("-t", "--text-dir", metavar="DIR",
+                        help="A flat directory containing the raw text. By default, it is assumed that the reference " +
+                             "directory contains the raw text.")
+    parser.add_argument("-i", "--include", metavar="EXPR", nargs="+", type=split_tuple_on_colons,
+                        help="An expression identifying types of annotations to be included in the evaluation. " +
+                             "The expression takes the form type[:property[:value]. For example, TLINK would only " +
+                             "include TLINK annotations in the evaluation, while TLINK:Type:CONTAINS would only " +
+                             "include TLINK annotations with a Type property that has the value CONTAINS.")
+    parser.add_argument("-e", "--exclude", metavar="EXPR", nargs="+", type=split_tuple_on_colons,
+                        help="An expression identifying types of annotations to be excluded from the evaluation. " +
+                             "The expression takes the form type[:property[:value] (see --include).")
+    parser.add_argument("--xml-name-regex", metavar="REGEX", default="[.]xml$")
     parser.add_argument("--temporal-closure", action="store_const", const=TemporalClosureScores, dest="scores_type")
-    parser.add_argument("--include", nargs="+", type=split_tuple_on_colons)
-    parser.add_argument("--exclude", nargs="+", type=split_tuple_on_colons)
     parser.add_argument("--overlap", dest="annotation_wrapper", action="store_const", const=_OverlappingWrapper)
-    parser.add_argument("--xml-name-regex", default="[.]xml$")
+    parser.add_argument("--debug", action="store_const", const=DebuggingScores, dest="scores_type")
     args = parser.parse_args()
     basic_config_kwargs = {"format": "%(levelname)s:%(message)s"}
     if args.scores_type == DebuggingScores:
