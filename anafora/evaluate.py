@@ -526,7 +526,9 @@ if __name__ == "__main__":
         result = tuple(string.split(":"))
         return result[0] if len(result) == 1 else result
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="""%(prog)s compares one directory of Anafora XML annotations to
+        another and prints statistics such as precision, recall and F-measure. It can also be used with a single
+        Anafora XML directory to compute inter-annotator agreement.""")
     parser.set_defaults(scores_type=Scores)
     parser.add_argument("-r", "--reference", metavar="DIR", dest="reference_dir", required=True,
                         help="The root of a set of Anafora XML directories representing reference annotations.")
