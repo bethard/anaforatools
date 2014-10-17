@@ -528,25 +528,37 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.set_defaults(scores_type=Scores)
-    parser.add_argument("-r", "--reference-dir", metavar="DIR", required=True,
-                        help="The root of a set of Anafora XML directories representing reference annotations")
-    parser.add_argument("-p", "--predicted-dir", metavar="DIR",
-                        help="The root of a set of Anafora XML directories representing system-predicted annotations")
-    parser.add_argument("-t", "--text-dir", metavar="DIR",
-                        help="A flat directory containing the raw text. By default, it is assumed that the reference " +
-                             "directory contains the raw text.")
+    parser.add_argument("-r", "--reference", metavar="DIR", dest="reference_dir", required=True,
+                        help="The root of a set of Anafora XML directories representing reference annotations.")
+    parser.add_argument("-p", "--predicted", metavar="DIR", dest="predicted_dir",
+                        help="The root of a set of Anafora XML directories representing system-predicted annotations.")
+    parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir",
+                        help="A flat directory containing the raw text. By default, the reference directory is " +
+                             "assumed to contain the raw text. (Text is typically only needed with --verbose.)")
     parser.add_argument("-i", "--include", metavar="EXPR", nargs="+", type=split_tuple_on_colons,
                         help="An expression identifying types of annotations to be included in the evaluation. " +
                              "The expression takes the form type[:property[:value]. For example, TLINK would only " +
-                             "include TLINK annotations in the evaluation, while TLINK:Type:CONTAINS would only " +
-                             "include TLINK annotations with a Type property that has the value CONTAINS.")
+                             "include TLINK annotations (and TLINK properties and property values) in the " +
+                             "evaluation, while TLINK:Type:CONTAINS would only include TLINK annotations with a Type " +
+                             "property that has the value CONTAINS.")
     parser.add_argument("-e", "--exclude", metavar="EXPR", nargs="+", type=split_tuple_on_colons,
                         help="An expression identifying types of annotations to be excluded from the evaluation. " +
                              "The expression takes the form type[:property[:value] (see --include).")
-    parser.add_argument("--xml-name-regex", metavar="REGEX", default="[.]xml$")
-    parser.add_argument("--temporal-closure", action="store_const", const=TemporalClosureScores, dest="scores_type")
-    parser.add_argument("--overlap", dest="annotation_wrapper", action="store_const", const=_OverlappingWrapper)
-    parser.add_argument("--debug", action="store_const", const=DebuggingScores, dest="scores_type")
+    parser.add_argument("--xml-name-regex", metavar="REGEX", default="[.]xml$",
+                        help="A regular expression for matching XML files in the subdirectories, typically used to " +
+                             "restrict the evaluation to a subset of the available files (default: %(default)r)")
+    parser.add_argument("--temporal-closure", action="store_const", const=TemporalClosureScores, dest="scores_type",
+                        help="Apply temporal closure on the reference annotations when calculating precision, and " +
+                             "apply temporal closure on the predicted annotations when calculating recall. " +
+                             "This must be combined with --include to restrict the evaluation to a Type:Property " +
+                             "whose values are valid temporal relations (BEFORE, AFTER, INCLUDES, etc.)")
+    parser.add_argument("--verbose", action="store_const", const=DebuggingScores, dest="scores_type",
+                        help="Include more information in the output, such as the reference expressions that were " +
+                             "and the predicted expressions that were not in the reference.")
+    parser.add_argument("--overlap", dest="annotation_wrapper", action="store_const", const=_OverlappingWrapper,
+                        help="Count predicted annotation spans as correct if they overlap by one character or more " +
+                             "with a reference annotation span. Not intended as a real evaluation method (since what " +
+                             "to do with multiple matches is not well defined) but useful for debugging purposes.")
     args = parser.parse_args()
     basic_config_kwargs = {"format": "%(levelname)s:%(message)s"}
     if args.scores_type == DebuggingScores:
