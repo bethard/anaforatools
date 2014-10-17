@@ -159,12 +159,22 @@ def log_entities_with_identical_spans(anafora_dir, xml_name_regex):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--schema", required=True)
-    parser.add_argument("--anafora-dir", required=True)
-    parser.add_argument("--xml-name-regex", default="[.]xml$")
+    parser = argparse.ArgumentParser(description="""%(prog)s validates Anafora XML files against an Anafora schema and
+        logs any errors. It can also identify other potential errors such as the presence of distinct entities with
+        identical text spans.""")
+    parser.add_argument("-s", "--schema", metavar="FILE", required=True,
+                        help="An Anafora schema XML file against which Anafora annotation XML files should be " +
+                             "validated.")
+    parser.add_argument("-i", "--input", metavar="DIR", required=True, dest="anafora_dir",
+                        help="The root of a set of Anafora annotation XML directories.")
+    parser.add_argument("-x", "--xml-name-regex", metavar="REGEX", default="[.]xml$",
+                        help="A regular expression for matching XML files, typically used to restrict the validation " +
+                             "to a subset of the available files (default: %(default)r)")
+    parser.add_argument("--identical-spans", action='store_true',
+                        help="Also log any pairs of entities that span the exact same text offsets.")
     args = parser.parse_args()
     logging.basicConfig(format="%(levelname)s:%(message)s")
 
     log_schema_errors(Schema.from_file(args.schema), args.anafora_dir, args.xml_name_regex)
-    log_entities_with_identical_spans(args.anafora_dir, args.xml_name_regex)
+    if args.identical_spans:
+        log_entities_with_identical_spans(args.anafora_dir, args.xml_name_regex)
