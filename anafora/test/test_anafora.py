@@ -51,6 +51,14 @@ def test_add_entity():
                          '<parentsType>Y</parentsType>' +
                          '<properties><name1>value1</name1></properties>' +
                          '</entity></annotations></data>')
+    del entity.properties["name1"]
+    assert str(data) == ('<data><annotations><entity>' +
+                         '<id>1</id>' +
+                         '<type>X</type>' +
+                         '<parentsType>Y</parentsType>' +
+                         '</entity></annotations></data>')
+    with pytest.raises(ValueError):
+        del entity.properties["name2"]
 
 
 def test_add_reference():

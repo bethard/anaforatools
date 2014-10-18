@@ -298,6 +298,14 @@ class AnaforaProperties(_XMLWrapper):
         else:
             property_elem.text = value
 
+    def __delitem__(self, name):
+        if name not in self._tag_to_property_xml:
+            raise ValueError('no such property {0!r}'.format(name))
+        self.xml.remove(self._tag_to_property_xml.pop(name))
+        if not self._tag_to_property_xml:
+            self._annotation.xml.remove(self.xml)
+            self.xml = None
+
     def items(self):
         return [(name, self[name]) for name in self]
 
