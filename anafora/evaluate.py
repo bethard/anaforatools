@@ -585,8 +585,8 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
         annotator_data = []
         for xml_name in xml_names:
 
-            # ignore in-progress annotations
-            if '.inprogress.' in xml_name:
+            # ignore in-progress annotations and automatic pre-annotations
+            if '.inprogress.' in xml_name or '.preannotation.' in xml_name:
                 continue
 
             # ignore empty files
