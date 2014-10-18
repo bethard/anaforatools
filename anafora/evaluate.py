@@ -12,6 +12,7 @@ import anafora
 
 
 class Scores(object):
+
     def __init__(self):
         self.reference = 0
         self.predicted = 0
@@ -21,24 +22,35 @@ class Scores(object):
         """
         :param set reference: the reference annotations
         :param set predicted: the predicted annotations
-        :return tuple: (annotations only in reference, annotations only predicted)
         """
         self.reference += len(reference)
         self.predicted += len(predicted)
         self.correct += len(reference & predicted)
 
     def update(self, other):
+        """
+        :param Scores other: scores to merge into this one
+        """
         self.reference += other.reference
         self.predicted += other.predicted
         self.correct += other.correct
 
     def precision(self):
+        """
+        :return float: the fraction of predicted annotations that were correct
+        """
         return 1.0 if self.predicted == 0 else self.correct / float(self.predicted)
 
     def recall(self):
+        """
+        :return float: the fraction of reference annotations that were found
+        """
         return 1.0 if self.reference == 0 else self.correct / float(self.reference)
 
     def f1(self):
+        """
+        :return float: the harmonic mean of precision and recall
+        """
         p = self.precision()
         r = self.recall()
         return 0.0 if p + r == 0.0 else 2 * p * r / (p + r)
@@ -55,6 +67,10 @@ class DebuggingScores(Scores):
         self.errors = []
 
     def add(self, reference, predicted):
+        """
+        :param set reference: the reference annotations
+        :param set predicted: the predicted annotations
+        """
         Scores.add(self, reference, predicted)
         errors = []
         for item in reference - predicted:
@@ -65,6 +81,9 @@ class DebuggingScores(Scores):
         self.errors.extend(errors)
 
     def update(self, other):
+        """
+        :param DebuggingScores other: scores to merge into this one
+        """
         Scores.update(self, other)
         self.errors.extend(other.errors)
 
@@ -78,13 +97,12 @@ class TemporalClosureScores(object):
 
     @property
     def correct(self):
-        return (self.precision_correct, self.recall_correct)
+        return self.precision_correct, self.recall_correct
 
     def add(self, reference, predicted):
         """
         :param set reference: the reference annotations
         :param set predicted: the predicted annotations
-        :return tuple: (annotations only in reference, annotations only predicted)
         """
         reference = {a for a in reference if self._is_valid(a)}
         predicted = {a for a in predicted if self._is_valid(a)}
@@ -94,18 +112,30 @@ class TemporalClosureScores(object):
         self.recall_correct += len(reference & self._closure(predicted))
 
     def update(self, other):
+        """
+        :param TemporalClosureScores other: scores to merge into this one
+        """
         self.reference += other.reference
         self.predicted += other.predicted
         self.precision_correct += other.precision_correct
         self.recall_correct += other.recall_correct
 
     def precision(self):
+        """
+        :return float: the fraction of predicted annotations that were correct (or inferable)
+        """
         return 1.0 if self.predicted == 0 else self.precision_correct / float(self.predicted)
 
     def recall(self):
+        """
+        :return float: the fraction of reference annotations that were found (or inferable)
+        """
         return 1.0 if self.reference == 0 else self.recall_correct / float(self.reference)
 
     def f1(self):
+        """
+        :return float: the harmonic mean of precision and recall
+        """
         p = self.precision()
         r = self.recall()
         return 0.0 if p + r == 0.0 else 2 * p * r / (p + r)
@@ -116,49 +146,69 @@ class TemporalClosureScores(object):
         )
 
     def _is_valid(self, annotation):
+
+        # temporal closure only makes sense on a single property, not an entire annotation
         if not isinstance(annotation, _AnnotationView):
             raise RuntimeError("temporal closure cannot be applied to {0}".format(annotation))
-        try:
-            (source, target) = annotation.spans
-        except ValueError:
+
+        # temporal closure only makes sense with binary relations
+        if len(annotation.spans) != 2:
             logging.warning("invalid spans for temporal closure {0}".format(annotation))
             return False
-        else:
-            if annotation.value not in self._interval_to_point:
-                logging.warning("invalid relation for temporal closure {0}".format(annotation))
-                return False
-            return True
 
+        # temporal closure only works on a defined set of temporal relations
+        if annotation.value not in self._interval_to_point:
+            logging.warning("invalid relation for temporal closure {0}".format(annotation))
+            return False
+
+        # otherwise, temporal closure should work
+        return True
 
     def _to_point_relations(self, annotations):
         start = self._start
         end = self._end
+
+        # converts each interval relation to point relations
         point_relations = set()
         for annotation in annotations:
             intervals = annotation.spans
             interval1, interval2 = intervals
+
+            # the start of an interval is always before its end
             point_relations.add(((interval1, start), "<", (interval1, end)))
             point_relations.add(((interval2, start), "<", (interval2, end)))
+
+            # use the interval-to-point lookup table to add the necessary point relations
             for index1, side1, relation, index2, side2 in self._interval_to_point[annotation.value]:
                 point1 = (intervals[index1], side1)
                 point2 = (intervals[index2], side2)
                 point_relations.add((point1, relation, point2))
+
+                # for reflexive point relations, add them in the other direction too
                 if relation == "=":
                     point_relations.add((point2, relation, point1))
+
+        # return the collected relations
         return point_relations
 
     def _to_interval_relations(self, point_relations, annotations):
-        interval_relations = set()
+
+        # map intervals to names
         interval_names = collections.defaultdict(set)
         for annotation in annotations:
             for span in annotation.spans:
                 interval_names[span].add(annotation.name)
+
+        # find all pairs of intervals that have some point relation between them (and whose names match)
         pair_names = {}
         for ((interval1, _), _, (interval2, _)) in point_relations:
             names = interval_names[interval1] & interval_names[interval2]
             if names:
                 pair_names[(interval1, interval2)] = names
                 pair_names[(interval2, interval1)] = names
+
+        # for each interval pair, see if it satisfies the point-wise requirements for any interval relations
+        interval_relations = set()
         for pair in pair_names:
             names = pair_names[pair]
             for relation, requirements in self._interval_to_point.items():
@@ -166,28 +216,43 @@ class TemporalClosureScores(object):
                        for i1, s1, r, i2, s2 in requirements):
                     for name in names:
                         interval_relations.add(_AnnotationView(pair, name, relation))
+
+        # return the collected relations
         return interval_relations
 
     def _closure(self, annotations):
+
+        # convert interval relations to point relations
         new_relations = self._to_point_relations(annotations)
+
+        # repeatedly apply point transitivity rules until no new relations can be inferred
         point_relations = set()
         point_relations_index = collections.defaultdict(set)
         while new_relations:
+
+            # update the result and the index with any new relations found on the last iteration
             point_relations.update(new_relations)
             for point_relation in new_relations:
                 point_relations_index[point_relation[0]].add(point_relation)
+
+            # infer any new transitive relations, e.g., if A < B and B < C then A < C
             new_relations = set()
             for point1, relation12, point2 in point_relations:
                 for _, relation23, point3 in point_relations_index[point2]:
                     relation13 = self._point_transitions[relation12][relation23]
-                    if relation13 is not None:
-                        new_relation = (point1, relation13, point3)
-                        if new_relation not in point_relations:
-                            new_relations.add(new_relation)
+                    new_relation = (point1, relation13, point3)
+                    if new_relation not in point_relations:
+                        new_relations.add(new_relation)
+
+        # convert the point relations back to interval relations
         return self._to_interval_relations(point_relations, annotations)
 
+    # constants representing the start point and end point of an interval
     _start = 0
     _end = 1
+
+    # mapping from interval relation names to point relations
+    # for example, BEFORE means that the first interval's end is before the second interval's start
     _interval_to_point = {
         "BEFORE": [(0, _end, "<", 1, _start)],
         "AFTER": [(1, _end, "<", 0, _start)],
@@ -208,11 +273,15 @@ class TemporalClosureScores(object):
         "DURING_INV": [(0, _start, "=", 1, _start), (0, _end, "=", 1, _end)],
         "OVERLAP": [(0, _start, "<", 1, _end), (1, _start, "<", 0, _end)],
     }
+
+    # transitivity table for point relations
     _point_transitions = {
         "<": {"<": "<", "=": "<"},
         "=": {"<": "<", "=": "="},
     }
 
+
+# This is basically a hack to redefine span hashing and equality for all annotations
 class _OverlappingWrapper(object):
     def __init__(self, annotation, seen=None):
         self.annotation = annotation
@@ -256,6 +325,8 @@ class _OverlappingWrapper(object):
     def __repr__(self):
         return "{0}({1})".format(self.__class__.__name__, self.annotation)
 
+
+# This is part of the hack above to redefine span hashing and equality for all annotations
 @functools.total_ordering
 class _OverlappingSpans(object):
     def __init__(self, spans):
@@ -284,14 +355,8 @@ class _OverlappingSpans(object):
         return "{0}({1})".format(self.__class__.__name__, self.spans)
 
 
+# A type used to capture just a part of an annotation, e.g., just its spans, or just a single property
 _AnnotationView = collections.namedtuple("AnnotationView", ["spans", "name", "value"])
-
-def _group_by(reference_iterable, predicted_iterable, key_function):
-    result = collections.defaultdict(lambda: (set(), set()))
-    for iterable, index in [(reference_iterable, 0), (predicted_iterable, 1)]:
-        for item in iterable:
-            result[key_function(item)][index].add(item)
-    return result
 
 
 def score_data(reference_data, predicted_data, include=None, exclude=None,
@@ -307,6 +372,16 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
     :param type annotation_wrapper: wrapper type to apply to AnaforaAnnotations
     :return dict: mapping of (annotation type, property) to Scores object
     """
+
+    # groups items from iterables by a key function
+    def _group_by(reference_iterable, predicted_iterable, key_function):
+        groups = collections.defaultdict(lambda: (set(), set()))
+        for iterable, index in [(reference_iterable, 0), (predicted_iterable, 1)]:
+            for item in iterable:
+                groups[key_function(item)][index].add(item)
+        return groups
+
+    # returns true if this type:property:value is accepted by includes= and excludes=
     def _accept(type_name, prop_name=None, prop_value=None):
         if include is not None:
             if type_name not in include:
@@ -322,6 +397,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                 return False
         return True
 
+    # generates a view of just the annotation's spans, and of each of its properties
     def _views(annotations):
         views = set()
         for ann in annotations:
@@ -336,17 +412,26 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                     views.add(_AnnotationView(spans, (ann.type, view_name, view_value), view_value))
         return views
 
-    result = collections.defaultdict(lambda: scores_type())
+    # get reference and predicted annotations
     reference_annotations = reference_data.annotations
     predicted_annotations = [] if predicted_data is None else predicted_data.annotations
+
+    # if necessary, wrap the annotations in a wrapper class
     if annotation_wrapper is not None:
         reference_annotations = map(annotation_wrapper, reference_annotations)
         predicted_annotations = map(annotation_wrapper, predicted_annotations)
+
+    # fill a mapping from a name (type, type:property or type:property:value) to the corresponding scores
+    result = collections.defaultdict(lambda: scores_type())
     results_by_type = _group_by(reference_annotations, predicted_annotations, lambda a: a.type)
     for ann_type in sorted(results_by_type):
+
+        # update whole-annotation scores
         type_reference_annotations, type_predicted_annotations = results_by_type[ann_type]
         if _accept(ann_type):
             result[ann_type].add(type_reference_annotations, type_predicted_annotations)
+
+        # update span and property scores
         reference_views = _views(type_reference_annotations)
         predicted_views = _views(type_predicted_annotations)
         results_by_view = _group_by(reference_views, predicted_views, lambda t: t.name)
@@ -354,10 +439,17 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
             view_reference_annotations, view_predicted_annotations = results_by_view[view_name]
             result[view_name].add(view_reference_annotations, view_predicted_annotations)
 
+    # return the collected scores
     return result
 
 
 def _load(xml_path):
+    """
+    Tries to load data from an Anafora XML file, issuing errors on failure.
+
+    :param xml_path: the path to an Anafora XML file
+    :return AnaforaData: the data loaded from the XML, or None if there was a failure
+    """
     if not os.path.exists(xml_path):
         logging.warn("%s: no such file", xml_path)
         return None
@@ -385,9 +477,12 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
     :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
     :return dict: mapping of (annotation type, property) to Scores object
     """
-    result = collections.defaultdict(lambda: scores_type())
 
+    # walks through the reference Anafora XML directories, scoring each and adding those to the overall scores
+    result = collections.defaultdict(lambda: scores_type())
     for sub_dir, text_name, reference_xml_names in anafora.walk(reference_dir):
+
+        # load the reference data from its Anafora XML
         try:
             [reference_xml_name] = reference_xml_names
         except ValueError:
@@ -397,12 +492,15 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
             reference_xml_name = reference_xml_names[0]
         reference_xml_path = os.path.join(reference_dir, sub_dir, reference_xml_name)
         reference_data = _load(reference_xml_path)
+
+        # check for self-references in the annotations, which cause equality and hashing to fail
         self_reference = reference_data.annotations.find_self_referential()
         if self_reference is not None:
             msg = "skipping reference file %s with self-referential annotation %s"
             logging.warn(msg, reference_xml_path, self_reference.id)
             continue
 
+        # find and load the corresponding predicted data from its Anafora XML
         predicted_xml_glob = os.path.join(predicted_dir, sub_dir, text_name + "*.xml")
         predicted_xml_paths = glob.glob(predicted_xml_glob)
         try:
@@ -416,19 +514,26 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
             else:
                 predicted_xml_path = predicted_xml_paths[0]
                 predicted_data = _load(predicted_xml_path)
+
+        # check for self-references in the annotations, which cause equality and hashing to fail
         self_reference = predicted_data.annotations.find_self_referential()
         if self_reference is not None:
             msg = "skipping predicted file %s with self-referential annotation %s"
             logging.warn(msg, predicted_xml_path, self_reference.id)
             predicted_data = anafora.AnaforaData()
 
+        # determine the path for the raw text source file
         if text_dir is None:
             text_path = os.path.join(reference_dir, sub_dir, text_name)
         else:
             text_path = os.path.join(text_dir, text_name)
+
+        # if no raw text was found, then asking for the text of an annotation is an error
         if not os.path.exists(text_path) or not os.path.isfile(text_path):
             def _span_text(_):
                 raise RuntimeError("no text file found at {0}".format(text_path))
+
+        # otherwise, the text of an annotation can be extracted based on its spans
         else:
             with open(text_path) as text_file:
                 text = text_file.read()
@@ -436,16 +541,18 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
             def _span_text(spans):
                 return "...".join(text[start:end] for start, end in spans)
 
-
+        # score this data and update the overall scores
         named_scores = score_data(reference_data, predicted_data, include, exclude,
                                   scores_type=scores_type, annotation_wrapper=annotation_wrapper)
         for name, scores in named_scores.items():
             result[name].update(scores)
-            if not predicted_xml_paths:
-                continue
-            for annotation, message in getattr(scores, "errors", []):
-                logging.debug('%s: %s: "%s" %s"', text_name, message, _span_text(annotation.spans), annotation)
 
+            # if there were some predictions, and if we're using scores that keep track of errors, log the errors
+            if predicted_xml_paths:
+                for annotation, message in getattr(scores, "errors", []):
+                    logging.debug('%s: %s: "%s" %s"', text_name, message, _span_text(annotation.spans), annotation)
+
+    # return the overall scores
     return result
 
 
@@ -462,36 +569,55 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
     :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
     :return dict: mapping of (annotation type, property) to Scores object
     """
-    result = collections.defaultdict(lambda: scores_type())
 
+    # pattern for extracting the annotator name from the Anafora XML file name
     annotator_name_regex = "([^.]*)[.][^.]*[.]xml$"
 
+    # function for getting a canonical prefix corresponding to a pair of annotators
     def make_prefix(annotators):
         return "{0}-vs-{1}".format(*sorted(annotators))
 
+    # walks through the Anafora XML directories, scoring each and adding those to the overall scores
+    result = collections.defaultdict(lambda: scores_type())
     for sub_dir, text_name, xml_names in anafora.walk(anafora_dir, xml_name_regex):
-        if len(xml_names) < 2:
-            logging.warn("%s: found fewer than 2 annotators: %s", text_name, xml_names)
-            continue
 
+        # load the data from each Anafora XML file
         annotator_data = []
         for xml_name in xml_names:
+
+            # ignore in-progress annotations
             if '.inprogress.' in xml_name:
                 continue
-            annotator_name = re.search(annotator_name_regex, xml_name).group(1)
+
+            # ignore empty files
             xml_path = os.path.join(anafora_dir, sub_dir, xml_name)
             if os.stat(xml_path).st_size == 0:
                 continue
+
+            # load the data and add it to the list
             data = _load(xml_path)
+            annotator_name = re.search(annotator_name_regex, xml_name).group(1)
             annotator_data.append((annotator_name, data))
 
+        # at least 2 annotators are needed for annotator agreement
+        if len(annotator_data) < 2:
+            logging.warn("%s: found fewer than 2 annotators: %s", text_name, xml_names)
+            continue
+
+        # pair each annotator with each other annotator
         for i in range(len(annotator_data)):
             annotator1, data1 = annotator_data[i]
             for j in range(i + 1, len(annotator_data)):
                 annotator2, data2 = annotator_data[j]
+
+                # make a prefix for this specific pair of annotators
                 prefix = make_prefix([annotator1, annotator2])
+
+                # make a prefix where non-gold annotators are just called "annotator"
                 general_prefix = make_prefix(
                     a if a == "gold" else "annotator" for a in [annotator1, annotator2])
+
+                # perform the comparison of the two annotation sets and update the overall scores
                 named_scores = score_data(data1, data2, include, exclude,
                                           scores_type=scores_type, annotation_wrapper=annotation_wrapper)
                 for name, scores in named_scores.items():
@@ -500,17 +626,20 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
                     result[(prefix,) + name].update(scores)
                     result[(general_prefix,) + name].update(scores)
 
+    # return the overall scores
     return result
 
 
 def _print_scores(named_scores):
     """
+    Prints out a mapping of names to scores.
+
+    The mapping is typically produced by running an analysis like :func:`score_dirs` or :func:`score_annotators`
+
     :param dict named_scores: mapping of (annotation type, span or property) to Scores object
     """
-    def _score_name(name):
-        if isinstance(name, tuple):
-            name = ":".join(name)
-        return name
+    def _score_name(x):
+        return ":".join(x) if isinstance(x, tuple) else x
 
     print("{0:40}\t{1:^5}\t{2:^5}\t{3:^5}\t{4:^5}\t{5:^5}\t{6:^5}".format(
         "", "ref", "pred", "corr", "P", "R", "F1"))
@@ -546,7 +675,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--exclude", metavar="EXPR", nargs="+", type=split_tuple_on_colons,
                         help="An expression identifying types of annotations to be excluded from the evaluation. " +
                              "The expression takes the form type[:property[:value] (see --include).")
-    parser.add_argument("--xml-name-regex", metavar="REGEX", default="[.]xml$",
+    parser.add_argument("-x", "--xml-name-regex", metavar="REGEX", default="[.]xml$",
                         help="A regular expression for matching XML files in the subdirectories, typically used to " +
                              "restrict the evaluation to a subset of the available files (default: %(default)r)")
     parser.add_argument("--temporal-closure", action="store_const", const=TemporalClosureScores, dest="scores_type",
