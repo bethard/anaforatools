@@ -462,11 +462,12 @@ def _load(xml_path):
         return data
 
 
-def score_dirs(reference_dir, predicted_dir, text_dir=None,
+def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=None,
                include=None, exclude=None, scores_type=Scores, annotation_wrapper=None):
     """
     :param string reference_dir: directory containing reference ("gold standard") Anafora XML directories
     :param string predicted_dir: directory containing predicted (system-generated) Anafora XML directories
+    :param xml_name_regex: regular expression matching the files to be compared
     :param string text_dir: directory containing the raw texts corresponding to the Anafora XML
         (if None, texts are assumed to be in the reference dir)
     :param set include: types of annotations to include (others will be excluded); may be type names,
@@ -480,7 +481,7 @@ def score_dirs(reference_dir, predicted_dir, text_dir=None,
 
     # walks through the reference Anafora XML directories, scoring each and adding those to the overall scores
     result = collections.defaultdict(lambda: scores_type())
-    for sub_dir, text_name, reference_xml_names in anafora.walk(reference_dir):
+    for sub_dir, text_name, reference_xml_names in anafora.walk(reference_dir, xml_name_regex):
 
         # load the reference data from its Anafora XML
         try:
@@ -700,6 +701,7 @@ if __name__ == "__main__":
         _print_scores(score_dirs(
             reference_dir=args.reference_dir,
             predicted_dir=args.predicted_dir,
+            xml_name_regex=args.xml_name_regex,
             text_dir=args.text_dir,
             include=args.include,
             exclude=args.exclude,
