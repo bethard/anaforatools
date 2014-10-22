@@ -282,6 +282,7 @@ class TemporalClosureScores(object):
 
 
 # This is basically a hack to redefine span hashing and equality for all annotations
+@functools.total_ordering
 class _OverlappingWrapper(object):
     def __init__(self, annotation, seen=None):
         self.annotation = annotation
@@ -302,6 +303,10 @@ class _OverlappingWrapper(object):
                 else:
                     self.properties[name] = value
 
+    @property
+    def __class__(self):
+        return anafora.AnaforaAnnotation
+
     def _key(self):
         return self.spans, self.type, self.parents_type, self.properties
 
@@ -318,9 +323,12 @@ class _OverlappingWrapper(object):
 
     def __hash__(self):
         result = 0
-        for item in self.properties.iteritems():
+        for item in self.properties.items():
             result += hash(item)
         return result
+
+    def __lt__(self, other):
+        return self.spans < other.spans
 
     def __repr__(self):
         return "{0}({1})".format(self.__class__.__name__, self.annotation)
@@ -406,9 +414,11 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                 views.add(_AnnotationView(spans, (ann.type, "<span>"), None))
             for view_name in ann.properties:
                 view_value = ann.properties[view_name]
+                if view_value is None:
+                    view_value = '<none>'
                 if _accept(ann.type, view_name):
                     views.add(_AnnotationView(spans, (ann.type, view_name), view_value))
-                if _accept(ann.type, view_name, view_value) and isinstance(view_value, basestring):
+                if _accept(ann.type, view_name, view_value) and not isinstance(view_value, anafora.AnaforaAnnotation):
                     views.add(_AnnotationView(spans, (ann.type, view_name, view_value), view_value))
         return views
 
@@ -646,7 +656,7 @@ def _print_scores(named_scores):
         "", "ref", "pred", "corr", "P", "R", "F1"))
     for name in sorted(named_scores, key=_score_name):
         scores = named_scores[name]
-        print("{0:40}\t{1:5}\t{2:5}\t{3:5}\t{4:5.3f}\t{5:5.3f}\t{6:5.3f}".format(
+        print("{0!s:40}\t{1!s:5}\t{2!s:5}\t{3!s:5}\t{4:5.3f}\t{5:5.3f}\t{6:5.3f}".format(
             _score_name(name), scores.reference, scores.predicted, scores.correct,
             scores.precision(), scores.recall(), scores.f1()))
 

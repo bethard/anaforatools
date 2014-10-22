@@ -81,8 +81,8 @@ class Schema(object):
         for annotation in data.annotations:
             try:
                 self.validate(annotation)
-            except SchemaValidationError, error:
-                errors.append((annotation, error.message))
+            except SchemaValidationError as error:
+                errors.append((annotation, str(error)))
         return errors
 
 

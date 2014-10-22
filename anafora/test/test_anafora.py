@@ -37,7 +37,7 @@ def test_add_entity():
     entity = anafora.AnaforaEntity()
     with pytest.raises(ValueError) as exception_info:
         data.annotations.append(entity)
-    assert "id" in exception_info.value.message
+    assert "id" in str(exception_info.value)
     assert str(data) == '<data />'
     entity.id = "1"
     data.annotations.append(entity)
@@ -69,11 +69,11 @@ def test_add_reference():
     entity2.id = "@2@"
     with pytest.raises(ValueError) as exception_info:
         entity2.properties["link"] = entity1
-    assert "<annotations" in exception_info.value.message
+    assert "<annotations" in str(exception_info.value)
     data.annotations.append(entity1)
     with pytest.raises(ValueError):
         entity2.properties["link"] = entity1
-    assert "<annotations" in exception_info.value.message
+    assert "<annotations" in str(exception_info.value)
     data.annotations.append(entity2)
     entity2.properties["link"] = entity1
     assert str(data) == ('<data><annotations>' +

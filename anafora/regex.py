@@ -49,7 +49,7 @@ class RegexAnnotator(object):
                 try:
                     regex.compile(expression)
                 except regex.error as e:
-                    raise ValueError("{0} in {1!r}".format(e.message, expression))
+                    raise ValueError("{0} in {1!r}".format(e, expression))
                 if cls._capturing_group_pattern.search(expression):
                     raise ValueError("capturing groups are not allowed: " + expression)
 
@@ -92,7 +92,7 @@ class RegexAnnotator(object):
                         annotation_regex = '{0}{1}{2}'.format(prefix, annotation_regex, suffix)
                         text_type_map[annotation_regex][annotation.type] += 1
                         for key, value in annotation.properties.items():
-                            if isinstance(value, basestring):
+                            if not isinstance(value, anafora.AnaforaAnnotation):
                                 text_type_attrib_map[annotation_regex][annotation.type][key][value] += 1
 
         # convert the collected counts into a model by selecting the most common

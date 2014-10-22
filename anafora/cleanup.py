@@ -20,7 +20,7 @@ def fix_thyme_errors(schema, input_dir, output_dir, xml_name_regex="[.]xml$"):
             try:
                 data = anafora.AnaforaData.from_file(xml_path)
             except anafora.ElementTree.ParseError as e:
-                logging.warning("SKIPPING invalid XML: %s: %s", e.message, xml_path)
+                logging.warning("SKIPPING invalid XML: %s: %s", e, xml_path)
                 continue
 
             # remove invalid TLINKs and ALINKs
@@ -31,7 +31,7 @@ def fix_thyme_errors(schema, input_dir, output_dir, xml_name_regex="[.]xml$"):
                     schema.validate(annotation)
                 except anafora.validate.SchemaValidationError as e:
                     if annotation.type in {"TLINK", "ALINK"}:
-                        logging.warning("REMOVING %s: %s", e.message, annotation)
+                        logging.warning("REMOVING %s: %s", e, annotation)
                         to_remove.append(annotation)
             for annotation in to_remove:
                 data.annotations.remove(annotation)

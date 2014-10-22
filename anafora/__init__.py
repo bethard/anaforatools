@@ -1,8 +1,8 @@
 import collections
 import functools
-import itertools
 import os
 import re
+import sys
 
 try:
     import xml.etree.cElementTree as ElementTree
@@ -58,7 +58,13 @@ class _XMLWrapper(object):
         self.xml = xml
 
     def __repr__(self):
-        return ElementTree.tostring(self.xml) if self.xml is not None else '{0}()'.format(self.__class__.__name__)
+        if self.xml is not None:
+            result = ElementTree.tostring(self.xml)
+            if sys.version_info.major >= 3:
+                result = result.decode('utf-8')
+        else:
+            result = '{0}()'.format(self.__class__.__name__)
+        return result
 
 
 class AnaforaData(_XMLWrapper):
@@ -144,7 +150,9 @@ class AnaforaAnnotations(_XMLWrapper):
         return self._id_to_annotation[id]
 
     def select_type(self, type_name):
-        return itertools.ifilter(lambda a: a.type == type_name, self)
+        for annotation in self:
+            if annotation.type == type_name:
+                yield annotation
 
     def find_self_referential(self):
         for annotation in self:
