@@ -513,7 +513,7 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
 
         # find and load the corresponding predicted data from its Anafora XML
         predicted_xml_glob = os.path.join(predicted_dir, sub_dir, text_name + "*.xml")
-        predicted_xml_paths = glob.glob(predicted_xml_glob)
+        predicted_xml_paths = [f for f in glob.glob(predicted_xml_glob) if re.search(xml_name_regex, f) is not None]
         try:
             [predicted_xml_path] = predicted_xml_paths
             predicted_data = _load(predicted_xml_path)
