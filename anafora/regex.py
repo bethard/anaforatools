@@ -282,14 +282,14 @@ if __name__ == "__main__":
     annotate_parser.set_defaults(func=_annotate)
     annotate_parser.add_argument("-m", "--model", metavar="FILE", dest="model_file", required=True,
                                  help="The file containing the trained regex model.")
+    annotate_parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir", required=True,
+                                 help="The raw text that should be annotated with the regex model")
     annotate_parser.add_argument("-o", "--output", metavar="DIR", required=True, dest="output_dir",
                                  help="The directory where the Anafora XML files containing the model predictions " +
                                       "should be written.")
     annotate_parser.add_argument("-e", "--extension", metavar="EXT", default=".system.completed.xml",
                                  help="The suffix that should be given to the model prediction files " +
                                       "(default: %(default)r)")
-    annotate_parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir",
-                                 help="The raw text that should be annotated with the regex model")
     structures = {
         "anafora": anafora.walk_anafora_to_anafora,
         "flat": anafora.walk_flat_to_anafora,
