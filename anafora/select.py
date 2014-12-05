@@ -45,10 +45,10 @@ class Select(object):
         return True
 
 
-def _main(input_dir, output_dir, include=None, exclude=None):
+def _main(input_dir, output_dir, xml_name_regex="[.]xml$", include=None, exclude=None):
     select = Select(include, exclude)
 
-    for sub_dir, text_name, xml_names in anafora.walk(input_dir):
+    for sub_dir, text_name, xml_names in anafora.walk(input_dir, xml_name_regex):
         for xml_name in xml_names:
 
             # reads in the data from the input file
@@ -91,6 +91,9 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", metavar="DIR", required=True, dest="output_dir",
                         help="The directory where the cleaned versions of the Anafora annotation XML files should be " +
                              "written. The directory structure will mirror the input directory structure.")
+    parser.add_argument("-x", "--xml-name-regex", metavar="REGEX", default="[.]xml$",
+                        help="A regular expression for matching XML files in the input subdirectories " +
+                             "(default: %(default)r)")
     parser.add_argument("--include", metavar="EXPR", nargs="+", type=split_tuple_on_colons,
                         help="An expression identifying types of annotations to be included in the data. " +
                              "The expression takes the form type[:property[:value]. For example, TLINK would only " +
