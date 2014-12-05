@@ -202,11 +202,12 @@ class RegexAnnotator(object):
                 write('\n')
 
 
-def _train(train_dir, model_file, text_dir=None, text_encoding="utf-8", min_count=None, min_precision=None):
+def _train(train_dir, model_file, text_dir=None, xml_name_regex="[.]xml$", text_encoding="utf-8",
+           min_count=None, min_precision=None):
 
     # returns an iterator over (text, data) pairs
     def text_data_pairs():
-        for sub_dir, text_name, xml_names in anafora.walk(train_dir):
+        for sub_dir, text_name, xml_names in anafora.walk(train_dir, xml_name_regex):
             if text_dir is not None:
                 text_path = os.path.join(text_dir, text_name)
             else:
@@ -227,7 +228,7 @@ def _train(train_dir, model_file, text_dir=None, text_encoding="utf-8", min_coun
     model.to_file(model_file)
 
 
-def _annotate(model_file, text_dir, output_dir, get_iterator, text_encoding="utf-8"):
+def _annotate(model_file, text_dir, output_dir, get_iterator, text_encoding="utf-8", extension=".system.completed.xml"):
 
     # load a model from the file
     model = RegexAnnotator.from_file(model_file)
@@ -248,7 +249,7 @@ def _annotate(model_file, text_dir, output_dir, get_iterator, text_encoding="utf
         data_output_dir = os.path.join(output_dir, output_sub_dir)
         if not os.path.exists(data_output_dir):
             os.makedirs(data_output_dir)
-        data_output_path = os.path.join(data_output_dir, text_name + ".xml")
+        data_output_path = os.path.join(data_output_dir, text_name + extension)
         data.indent()
         data.to_file(data_output_path)
 
@@ -261,6 +262,9 @@ if __name__ == "__main__":
     train_parser.set_defaults(func=_train)
     train_parser.add_argument("-i", "--input", metavar="DIR", required=True, dest="train_dir",
                               help="The root of a set of Anafora XML files containing entity annotations.")
+    train_parser.add_argument("-x", "--xml-name-regex", metavar="REGEX", default="[.]xml$",
+                              help="A regular expression for matching XML files in the input subdirectories " +
+                                   "(default: %(default)r)")
     train_parser.add_argument("-m", "--model", metavar="FILE", dest="model_file", required=True,
                               help="The file where the trained regex model should be written.")
     train_parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir",
@@ -281,6 +285,9 @@ if __name__ == "__main__":
     annotate_parser.add_argument("-o", "--output", metavar="DIR", required=True, dest="output_dir",
                                  help="The directory where the Anafora XML files containing the model predictions " +
                                       "should be written.")
+    annotate_parser.add_argument("-e", "--extension", metavar="EXT", default=".system.completed.xml",
+                                 help="The suffix that should be given to the model prediction files " +
+                                      "(default: %(default)r)")
     annotate_parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir",
                                  help="The raw text that should be annotated with the regex model")
     structures = {
