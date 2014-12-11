@@ -22,6 +22,41 @@ def test_regex_annotator():
     assert dict(a_annotation.properties.items()) == {}
 
 
+def test_preannotated():
+    annotator = anafora.regex.RegexAnnotator({
+        'aa+': ('A', {'X': '2'}),
+        'a': ('A', {}),
+        'bb': ('B', {'Y': '1'})
+    }, {
+        'C': {'Z': '3'}
+    })
+    text = "bb aaa"
+    data = anafora.AnaforaData()
+    bb = anafora.AnaforaEntity()
+    bb.id = "1@preannotated"
+    bb.type = "B"
+    bb.spans = ((0, 2),)
+    data.annotations.append(bb)
+    aaa = anafora.AnaforaEntity()
+    aaa.id = "2@preannotated"
+    aaa.type = "C"
+    aaa.spans = ((3, 6),)
+    data.annotations.append(aaa)
+    annotator.annotate(text, data)
+
+    assert len(list(data.annotations)) == 3
+    [b_annotation, c_annotation, a_annotation] = data.annotations
+    assert b_annotation.type == "B"
+    assert b_annotation.spans == ((0, 2),)
+    assert dict(b_annotation.properties.items()) == {'Y': '1'}
+    assert c_annotation.type == "C"
+    assert c_annotation.spans == ((3, 6),)
+    assert dict(c_annotation.properties.items()) == {'Z': '3'}
+    assert a_annotation.type == "A"
+    assert a_annotation.spans == ((3, 6),)
+    assert dict(a_annotation.properties.items()) == {'X': '2'}
+
+
 def test_many_groups():
     regex_predictions = {}
     for i in range(1, 1000):
@@ -44,6 +79,8 @@ def test_file_roundtrip(tmpdir):
         'the year': ('DATE', {}),
         'John': ('PERSON', {'type': 'NAME', 'gender': 'MALE'}),
         '.1.2.\d+;': ('OTHER', {})
+    }, {
+        'PERSON': {'type': 'NAME', 'gender': 'FEMALE'}
     })
     annotator.to_file(annotator_path)
     assert anafora.regex.RegexAnnotator.from_file(annotator_path) == annotator
@@ -135,8 +172,10 @@ def test_train():
         r'\baaa\s+bb\b': ('AA', {"a": "A"}),
         r'\bccccc\b': ('CC', {"c": "C", "d": "D"}),
         r'\b\.': ('PERIOD', {}),
+    }, {
+        'AA': {'a': 'A', 'c': 'B'},
+        'CC': {'c': 'C', 'd': 'D'},
     })
-
     assert anafora.regex.RegexAnnotator.train([(text1, data1), (text2, data2)]) == annotator
 
 

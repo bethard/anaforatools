@@ -283,6 +283,9 @@ class AnaforaProperties(_XMLWrapper):
     def __iter__(self):
         return iter(self._tag_to_property_xml)
 
+    def __contains__(self, property_name):
+        return property_name in self._tag_to_property_xml
+
     def __getitem__(self, property_name):
         value = self._tag_to_property_xml[property_name].text
         return self._annotation._annotations._id_to_annotation.get(value, value)

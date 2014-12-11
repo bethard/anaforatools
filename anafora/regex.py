@@ -34,6 +34,7 @@ class RegexAnnotator(object):
 
             # parse each line in the model file, which should be: <regex>\t<type>\t<attributes>
             regex_type_attributes_map = {}
+            default_type_attributes_map = {}
             for line in path_or_file:
                 items = line.rstrip().split("\t")
                 if len(items) < 2 or len(items) > 3:
@@ -54,8 +55,11 @@ class RegexAnnotator(object):
                     raise ValueError("capturing groups are not allowed: " + expression)
 
                 # map the regular exrpression to the type and attributes
-                regex_type_attributes_map[expression] = (entity_type, attributes)
-            return cls(regex_type_attributes_map)
+                if not expression:
+                    default_type_attributes_map[entity_type] = attributes
+                else:
+                    regex_type_attributes_map[expression] = (entity_type, attributes)
+            return cls(regex_type_attributes_map, default_type_attributes_map or None)
 
     @classmethod
     def train(cls, text_data_pairs, min_count=None):
@@ -71,6 +75,7 @@ class RegexAnnotator(object):
         ddict = collections.defaultdict
         text_type_map = ddict(lambda: collections.Counter())
         text_type_attrib_map = ddict(lambda: ddict(lambda: ddict(lambda: collections.Counter())))
+        default_type_attrib_map = ddict(lambda: ddict(lambda: collections.Counter()))
 
         # save a regular expression for each entity
         for text, data in text_data_pairs:
@@ -94,9 +99,10 @@ class RegexAnnotator(object):
                         for key, value in annotation.properties.items():
                             if not isinstance(value, anafora.AnaforaAnnotation):
                                 text_type_attrib_map[annotation_regex][annotation.type][key][value] += 1
+                                default_type_attrib_map[annotation.type][key][value] += 1
 
         # convert the collected counts into a model by selecting the most common
-        predictions = {}
+        text_predictions = {}
         for text, entity_types in text_type_map.items():
 
             # select the most common type for this expression
@@ -112,17 +118,32 @@ class RegexAnnotator(object):
                     attrib[name] = value
 
                 # associate the type and attributes with the regular expression
-                predictions[text] = (entity_type, attrib)
-        return cls(predictions)
+                text_predictions[text] = (entity_type, attrib)
 
-    def __init__(self, regex_type_attributes_map):
+        # convert the global collected counts into a default model by selecting the most common
+        default_predictions = {}
+        for entity_type in default_type_attrib_map:
+            attrib = default_predictions[entity_type] = {}
+            for name, values in default_type_attrib_map[entity_type].items():
+                [(value, _)] = values.most_common(1)
+                attrib[name] = value
+
+        return cls(text_predictions, default_predictions)
+
+    def __init__(self, regex_type_attributes_map, default_type_attributes_map=None):
         self.regex_type_attributes_map = regex_type_attributes_map
+        self.default_type_attributes_map = default_type_attributes_map
 
     def __eq__(self, other):
-        return self.regex_type_attributes_map == other.regex_type_attributes_map
+        return (self.regex_type_attributes_map == other.regex_type_attributes_map and
+                self.default_type_attributes_map == other.default_type_attributes_map)
 
     def __repr__(self):
-        return '{0}({1})'.format(self.__class__.__name__, self.regex_type_attributes_map)
+        name = self.__class__.__name__
+        if self.default_type_attributes_map is None:
+            return '{0}({1})'.format(name, self.regex_type_attributes_map)
+        else:
+            return '{0}({1}, {2})'.format(name, self.regex_type_attributes_map, self.default_type_attributes_map)
 
     def annotate(self, text, data):
         """
@@ -131,6 +152,15 @@ class RegexAnnotator(object):
         :param str text: the text to be annotated
         :param anafora.AnaforaData data: the data to which the annotations should be added
         """
+
+        # index any existing annotations so we can add to them if necessary
+        span_type_annotation_map = {}
+        for annotation in data.annotations:
+            span_type_annotation_map[annotation.spans, annotation.type] = annotation
+            if annotation.type in self.default_type_attributes_map:
+                for key, value in self.default_type_attributes_map[annotation.type].items():
+                    if key not in annotation.properties:
+                        annotation.properties[key] = value
 
         # create an overall regular expression where longest expressions are matched first
         # NOTE: we have to use the regex library, not the re library, because we need more that 100 groups
@@ -141,13 +171,18 @@ class RegexAnnotator(object):
         for i, match in enumerate(pattern.finditer(text)):
             pattern = patterns[match.lastindex - 1]
             entity_type, attributes = self.regex_type_attributes_map[pattern]
-            entity = anafora.AnaforaEntity()
-            entity.id = "{0}@regex".format(i)
-            entity.type = entity_type
-            entity.spans = ((match.start(), match.end()),)
+            spans = ((match.start(), match.end()),)
+            key = (spans, entity_type)
+            if key in span_type_annotation_map:
+                entity = span_type_annotation_map[key]
+            else:
+                entity = anafora.AnaforaEntity()
+                entity.id = "{0}@regex".format(i)
+                entity.type = entity_type
+                entity.spans = spans
+                data.annotations.append(entity)
             for key, value in attributes.items():
                 entity.properties[key] = value
-            data.annotations.append(entity)
 
     def prune_by_precision(self, min_precision, text_data_pairs):
         """
@@ -193,6 +228,12 @@ class RegexAnnotator(object):
         else:
 
             # write out each pattern as a line in the model file: <regex>\t<type>\t<attributes>
+            for entity_type, attributes in sorted(self.default_type_attributes_map.items()):
+                write('\t')
+                write(entity_type)
+                write('\t')
+                write(json.dumps(attributes))
+                write('\n')
             for expression, (entity_type, attributes) in sorted(self.regex_type_attributes_map.items()):
                 write(expression)
                 write('\t')
@@ -228,30 +269,41 @@ def _train(train_dir, model_file, text_dir=None, xml_name_regex="[.]xml$", text_
     model.to_file(model_file)
 
 
-def _annotate(model_file, text_dir, output_dir, get_iterator, text_encoding="utf-8", extension=".system.completed.xml"):
+def _annotate(model_file, text_dir, output_dir, data_dir=None,
+              text_encoding="utf-8", extension=".system.completed.xml"):
+
+    if data_dir is None:
+        iterator = anafora.walk_flat_to_anafora(text_dir)
+    else:
+        iterator = anafora.walk_anafora_to_anafora(data_dir)
 
     # load a model from the file
     model = RegexAnnotator.from_file(model_file)
 
     # annotate each text
-    for input_sub_dir, output_sub_dir, text_name, _ in get_iterator(text_dir):
+    for input_sub_dir, output_sub_dir, text_name, xml_names in iterator:
+        if data_dir is None:
+            data_iter = [(anafora.AnaforaData(), text_name + extension)]
+        else:
+            data_iter = [(anafora.AnaforaData.from_file(os.path.join(data_dir, input_sub_dir, xml_name)), xml_name)
+                         for xml_name in xml_names]
 
-        # read in the text
-        text_path = os.path.join(text_dir, input_sub_dir, text_name)
-        with codecs.open(text_path, 'r', text_encoding) as text_file:
-            text = text_file.read()
+        for data, output_name in data_iter:
+            # read in the text
+            text_path = os.path.join(text_dir, text_name)
+            with codecs.open(text_path, 'r', text_encoding) as text_file:
+                text = text_file.read()
 
-        # annotate the text
-        data = anafora.AnaforaData()
-        model.annotate(text, data)
+            # annotate the text
+            model.annotate(text, data)
 
-        # save the annotated data to the output directory
-        data_output_dir = os.path.join(output_dir, output_sub_dir)
-        if not os.path.exists(data_output_dir):
-            os.makedirs(data_output_dir)
-        data_output_path = os.path.join(data_output_dir, text_name + extension)
-        data.indent()
-        data.to_file(data_output_path)
+            # save the annotated data to the output directory
+            data_output_dir = os.path.join(output_dir, output_sub_dir)
+            if not os.path.exists(data_output_dir):
+                os.makedirs(data_output_dir)
+            data_output_path = os.path.join(data_output_dir, output_name)
+            data.indent()
+            data.to_file(data_output_path)
 
 
 if __name__ == "__main__":
@@ -284,24 +336,17 @@ if __name__ == "__main__":
                                  help="The file containing the trained regex model.")
     annotate_parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir", required=True,
                                  help="The raw text that should be annotated with the regex model")
+    annotate_parser.add_argument("-d", "--data", metavar="DIR", dest="data_dir",
+                                 help="A directory of pre-annotated Anafora XMLs for the given raw text")
     annotate_parser.add_argument("-o", "--output", metavar="DIR", required=True, dest="output_dir",
                                  help="The directory where the Anafora XML files containing the model predictions " +
                                       "should be written.")
     annotate_parser.add_argument("-e", "--extension", metavar="EXT", default=".system.completed.xml",
                                  help="The suffix that should be given to the model prediction files " +
                                       "(default: %(default)r)")
-    structures = {
-        "anafora": anafora.walk_anafora_to_anafora,
-        "flat": anafora.walk_flat_to_anafora,
-    }
-    # this should really use type=structures.get, but that seems to interact poorly with the choices= argument
-    annotate_parser.add_argument("-ts", "--text-structure", dest="get_iterator", choices=structures, default="flat",
-                                 help="The hierarchical structure of the text directory (default: %(default)s)")
     annotate_parser.add_argument("-te", "--text-encoding", metavar="ENCODING", default="utf-8",
                                  help="The encoding of the text files (important for correct character offsets).")
 
     args = parser.parse_args()
     kwargs = vars(args)
-    if 'get_iterator' in kwargs:
-        kwargs['get_iterator'] = structures[kwargs['get_iterator']]
     kwargs.pop("func")(**kwargs)
