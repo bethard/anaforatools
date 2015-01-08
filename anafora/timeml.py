@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 
 import anafora
 
@@ -27,8 +28,23 @@ def to_anafora_data(timeml_path):
         "SLINK": "lid",
         "ALINK": "lid",
     }
+    ref_id_attrs = {"eventID", "signalID", "beginPoint", "endPoint", "valueFromFunction", "anchorTimeID",
+                    "eventInstanceID", "timeID", "signalID", "relatedToEventInstance", "relatedToTime",
+                    "subordinatedEventInstance", "tagID"}
     text = to_text(timeml_path)
     data = anafora.AnaforaData()
+    root = anafora.ElementTree.parse(timeml_path).getroot()
+
+    prefix_to_char = {'t': 'e', 'e': 'e', 's': 'e', 'ei': 'r', 'l': 'r'}
+    timeml_id_to_anafora_id = {}
+    count = 1
+    file_base, _ = os.path.splitext(os.path.basename(timeml_path))
+    for elem in root.iter():
+        if elem.tag in tag_id_attrs:
+            timeml_id = elem.attrib[tag_id_attrs[elem.tag]]
+            [(prefix, number)] = re.findall(r'^(\D+)(\d+)$', timeml_id)
+            timeml_id_to_anafora_id[timeml_id] = '{0:d}@{1}@{2}@gold'.format(count, prefix_to_char[prefix], file_base)
+            count += 1
 
     def add_annotations_from(elem, offset=0):
         start = offset
@@ -36,12 +52,14 @@ def to_anafora_data(timeml_path):
         if elem.tag in tag_id_attrs:
             annotation = anafora.AnaforaEntity() if elem.tag in entity_tags else anafora.AnaforaRelation()
             id_attr = tag_id_attrs[elem.tag]
-            annotation.id = elem.attrib[id_attr]
+            annotation.id = timeml_id_to_anafora_id[elem.attrib[id_attr]]
             annotation.type = elem.tag
             if isinstance(annotation, anafora.AnaforaEntity):
                 annotation.spans = ((start, start),)
             for name, value in elem.attrib.items():
                 if name != id_attr:
+                    if name in ref_id_attrs:
+                        value = timeml_id_to_anafora_id[value]
                     annotation.properties[name] = value
             data.annotations.append(annotation)
 
@@ -59,7 +77,7 @@ def to_anafora_data(timeml_path):
             offset += len(elem.tail)
         return offset
 
-    add_annotations_from(anafora.ElementTree.parse(timeml_path).getroot())
+    add_annotations_from(root)
     return data
 
 
