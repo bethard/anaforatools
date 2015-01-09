@@ -271,6 +271,20 @@ def test_score_data_overlap():
                     <Prop2>B</Prop2>
                 </properties>
             </relation>
+            <relation>
+                <id>6</id>
+                <type>Ref</type>
+                <properties>
+                    <Ref>1</Ref>
+                </properties>
+            </relation>
+            <relation>
+                <id>7</id>
+                <type>Ref</type>
+                <properties>
+                    <Ref>6</Ref>
+                </properties>
+            </relation>
         </annotations>
     </data>
     """))
@@ -321,6 +335,7 @@ def test_score_data_overlap():
         "Y", ("Y", "<span>"),
         "Z", ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
+        "Ref", ("Ref", "<span>"), ("Ref", "Ref"),
         }
     scores = named_scores["X"]
     assert scores.correct == 1
@@ -376,6 +391,7 @@ def test_score_data_overlap():
     assert set(named_scores.keys()) == {
         ("Z"), ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
+        "Ref", ("Ref", "<span>"), ("Ref", "Ref"),
         }
     scores = named_scores["Z"]
     assert scores.correct == 0

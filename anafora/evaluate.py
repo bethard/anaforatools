@@ -288,10 +288,7 @@ class _OverlappingWrapper(object):
         self.annotation = annotation
         self.type = self.annotation.type
         self.parents_type = self.annotation.parents_type
-        if isinstance(annotation, anafora.AnaforaEntity):
-            self.spans = _OverlappingSpans(self.annotation.spans)
-        if isinstance(annotation, anafora.AnaforaRelation):
-            self.spans = tuple(map(_OverlappingSpans, annotation.spans))
+        self.spans = tuple(self._to_overlapping_spans(self.annotation.spans))
         if seen is None:
             seen = set()
         self.properties = {}
@@ -302,6 +299,14 @@ class _OverlappingWrapper(object):
                     self.properties[name] = _OverlappingWrapper(value, seen)
                 else:
                     self.properties[name] = value
+
+    def _to_overlapping_spans(self, items):
+        if isinstance(items, tuple) and isinstance(items[0], tuple) and isinstance(items[0][0], int):
+            yield _OverlappingSpans(items)
+        else:
+            for item in items:
+                for overlapping_spans in self._to_overlapping_spans(item):
+                    yield overlapping_spans
 
     @property
     def __class__(self):
@@ -549,8 +554,16 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
             with open(text_path) as text_file:
                 text = text_file.read()
 
+            def _flatten(items):
+                if isinstance(items, tuple) and isinstance(items[0], int):
+                    yield items
+                else:
+                    for item in items:
+                        for flattened_items in _flatten(item):
+                            yield flattened_items
+
             def _span_text(spans):
-                return "...".join(text[start:end] for start, end in spans)
+                return "...".join(text[start:end] for start, end in _flatten(spans))
 
         # score this data and update the overall scores
         named_scores = score_data(reference_data, predicted_data, include, exclude,
