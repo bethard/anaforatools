@@ -708,7 +708,7 @@ if __name__ == "__main__":
                              "apply temporal closure on the predicted annotations when calculating recall. " +
                              "This must be combined with --include to restrict the evaluation to a Type:Property " +
                              "whose values are valid temporal relations (BEFORE, AFTER, INCLUDES, etc.)")
-    parser.add_argument("--per-document-scores", action="store_true",
+    parser.add_argument("--per-document", action="store_true",
                         help="Print out scores for each document, rather than overall scores")
     parser.add_argument("--verbose", action="store_const", const=DebuggingScores, dest="scores_type",
                         help="Include more information in the output, such as the reference expressions that were " +
@@ -742,7 +742,7 @@ if __name__ == "__main__":
             scores_type=args.scores_type,
             annotation_wrapper=args.annotation_wrapper)
 
-    if args.per_document_scores:
+    if args.per_document:
         _print_document_scores(_file_named_scores)
     else:
         _print_merged_scores(_file_named_scores, scores_type=args.scores_type)
