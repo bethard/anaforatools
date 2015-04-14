@@ -383,7 +383,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
         (type-name, property-name, property-value) tuples
     :param type scores_type: type for calculating matches between predictions and reference
     :param type annotation_wrapper: wrapper type to apply to AnaforaAnnotations
-    :return dict: mapping of (annotation type, property) to Scores object
+    :return dict: mapping from (annotation type[, property name[, property value]]) to Scores object
     """
 
     # groups items from iterables by a key function
@@ -491,11 +491,11 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
         (type-name, property-name, property-value) tuples
     :param type scores_type: type for calculating matches between predictions and reference
     :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
-    :return dict: mapping of (annotation type, property) to Scores object
+    :return iter: an iterator of (file-name, name-to-scores) where name-to-scores is a mapping from
+        (annotation type[, property name[, property value]]) to a Scores object
     """
 
     # walks through the reference Anafora XML directories, scoring each and adding those to the overall scores
-    result = collections.defaultdict(lambda: scores_type())
     for sub_dir, text_name, reference_xml_names in anafora.walk(reference_dir, xml_name_regex):
 
         # load the reference data from its Anafora XML
@@ -569,16 +569,14 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
         named_scores = score_data(reference_data, predicted_data, include, exclude,
                                   scores_type=scores_type, annotation_wrapper=annotation_wrapper)
         for name, scores in named_scores.items():
-            result[name].update(scores)
 
             # if there were some predictions, and if we're using scores that keep track of errors, log the errors
             if predicted_xml_paths:
                 for annotation, message in getattr(scores, "errors", []):
                     logging.debug('%s: %s: "%s" %s"', text_name, message, _span_text(annotation.spans), annotation)
 
-    # return the overall scores
-    return result
-
+        # generate the file name and the resulting scores
+        yield text_name, named_scores
 
 def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
                      scores_type=Scores, annotation_wrapper=None):
@@ -591,7 +589,8 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
         (type-name, property-name, property-value) tuples
     :param type scores_type: type for calculating matches between predictions and reference
     :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
-    :return dict: mapping of (annotation type, property) to Scores object
+    :return iter: an iterator of (file-name, name-to-scores) where name-to-scores is a mapping from
+        (annotation type[, property name[, property value]]) to a Scores object
     """
 
     # pattern for extracting the annotator name from the Anafora XML file name
@@ -602,7 +601,6 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
         return "{0}-vs-{1}".format(*sorted(annotators))
 
     # walks through the Anafora XML directories, scoring each and adding those to the overall scores
-    result = collections.defaultdict(lambda: scores_type())
     for sub_dir, text_name, xml_names in anafora.walk(anafora_dir, xml_name_regex):
 
         # load the data from each Anafora XML file
@@ -629,6 +627,7 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
             continue
 
         # pair each annotator with each other annotator
+        annotator_named_scores = collections.defaultdict(lambda: scores_type())
         for i in range(len(annotator_data)):
             annotator1, data1 = annotator_data[i]
             for j in range(i + 1, len(annotator_data)):
@@ -644,31 +643,45 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
                 # perform the comparison of the two annotation sets and update the overall scores
                 named_scores = score_data(data1, data2, include, exclude,
                                           scores_type=scores_type, annotation_wrapper=annotation_wrapper)
+
+                # add annotators as prefixes
                 for name, scores in named_scores.items():
                     if not isinstance(name, tuple):
                         name = name,
-                    result[(prefix,) + name].update(scores)
-                    result[(general_prefix,) + name].update(scores)
+                    annotator_named_scores[(prefix,) + name].update(scores)
+                    annotator_named_scores[(general_prefix,) + name].update(scores)
 
-    # return the overall scores
-    return result
+        # generate the filename and the resulting scores
+        yield text_name, annotator_named_scores
 
 
-def _print_scores(named_scores):
-    """
-    Prints out a mapping of names to scores.
+def _print_document_scores(file_named_scores):
 
-    The mapping is typically produced by running an analysis like :func:`score_dirs` or :func:`score_annotators`
+    def _score_name(x):
+        return ":".join(x) if isinstance(x, tuple) else x
 
-    :param dict named_scores: mapping of (annotation type, span or property) to Scores object
-    """
+    print("{0:40}\t{1:40}\t{2:^5}\t{3:^5}\t{4:^5}\t{5:^5}\t{6:^5}\t{7:^5}".format(
+        "", "", "ref", "pred", "corr", "P", "R", "F1"))
+    for file_name, named_scores in file_named_scores:
+        for name, scores in named_scores.items():
+            print("{0!s:40}\t{1!s:40}\t{2!s:5}\t{3!s:5}\t{4!s:5}\t{5:5.3f}\t{6:5.3f}\t{7:5.3f}".format(
+                file_name, _score_name(name), scores.reference, scores.predicted, scores.correct,
+                scores.precision(), scores.recall(), scores.f1()))
+
+
+def _print_merged_scores(file_named_scores, scores_type):
+    all_named_scores = collections.defaultdict(lambda: scores_type())
+    for _, named_scores in file_named_scores:
+        for name, scores in named_scores.items():
+            all_named_scores[name].update(scores)
+
     def _score_name(x):
         return ":".join(x) if isinstance(x, tuple) else x
 
     print("{0:40}\t{1:^5}\t{2:^5}\t{3:^5}\t{4:^5}\t{5:^5}\t{6:^5}".format(
         "", "ref", "pred", "corr", "P", "R", "F1"))
-    for name in sorted(named_scores, key=_score_name):
-        scores = named_scores[name]
+    for name in sorted(all_named_scores, key=_score_name):
+        scores = all_named_scores[name]
         print("{0!s:40}\t{1!s:5}\t{2!s:5}\t{3!s:5}\t{4:5.3f}\t{5:5.3f}\t{6:5.3f}".format(
             _score_name(name), scores.reference, scores.predicted, scores.correct,
             scores.precision(), scores.recall(), scores.f1()))
@@ -707,6 +720,8 @@ if __name__ == "__main__":
                              "apply temporal closure on the predicted annotations when calculating recall. " +
                              "This must be combined with --include to restrict the evaluation to a Type:Property " +
                              "whose values are valid temporal relations (BEFORE, AFTER, INCLUDES, etc.)")
+    parser.add_argument("--per-document-scores", action="store_true",
+                        help="Print out scores for each document, rather than overall scores")
     parser.add_argument("--verbose", action="store_const", const=DebuggingScores, dest="scores_type",
                         help="Include more information in the output, such as the reference expressions that were " +
                              "and the predicted expressions that were not in the reference.")
@@ -721,7 +736,7 @@ if __name__ == "__main__":
     logging.basicConfig(**basic_config_kwargs)
 
     if args.predicted_dir is not None:
-        _print_scores(score_dirs(
+        _file_named_scores = score_dirs(
             reference_dir=args.reference_dir,
             predicted_dir=args.predicted_dir,
             xml_name_regex=args.xml_name_regex,
@@ -729,12 +744,17 @@ if __name__ == "__main__":
             include=args.include,
             exclude=args.exclude,
             scores_type=args.scores_type,
-            annotation_wrapper=args.annotation_wrapper))
+            annotation_wrapper=args.annotation_wrapper)
     else:
-        _print_scores(score_annotators(
+        _file_named_scores = score_annotators(
             anafora_dir=args.reference_dir,
             xml_name_regex=args.xml_name_regex,
             include=args.include,
             exclude=args.exclude,
             scores_type=args.scores_type,
-            annotation_wrapper=args.annotation_wrapper))
+            annotation_wrapper=args.annotation_wrapper)
+
+    if args.per_document_scores:
+        _print_document_scores(_file_named_scores)
+    else:
+        _print_merged_scores(_file_named_scores, scores_type=args.scores_type)
