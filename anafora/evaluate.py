@@ -9,6 +9,7 @@ import os
 import re
 
 import anafora
+import anafora.select
 
 
 class Scores(object):
@@ -395,35 +396,22 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
         return groups
 
     # returns true if this type:property:value is accepted by includes= and excludes=
-    def _accept(type_name, prop_name=None, prop_value=None):
-        if include is not None:
-            if type_name not in include:
-                if (type_name, prop_name) not in include:
-                    if (type_name, prop_name, prop_value) not in include:
-                        return False
-        if exclude is not None:
-            if type_name in exclude:
-                return False
-            if (type_name, prop_name) in exclude:
-                return False
-            if (type_name, prop_name, prop_value) in exclude:
-                return False
-        return True
+    select = anafora.select.Select(include, exclude)
 
-    # generates a view of just the annotation's spans, and of each of its properties
+    # generates a view of just the annotation's spans, and of each of its selected properties
     def _views(annotations):
         views = set()
         for ann in annotations:
             spans = ann.spans
-            if _accept(ann.type, "<span>"):
+            if select(ann.type, "<span>"):
                 views.add(_AnnotationView(spans, (ann.type, "<span>"), None))
             for view_name in ann.properties:
                 view_value = ann.properties[view_name]
                 if view_value is None:
                     view_value = '<none>'
-                if _accept(ann.type, view_name):
+                if select(ann.type, view_name):
                     views.add(_AnnotationView(spans, (ann.type, view_name), view_value))
-                if _accept(ann.type, view_name, view_value) and not isinstance(view_value, anafora.AnaforaAnnotation):
+                if select(ann.type, view_name, view_value) and not isinstance(view_value, anafora.AnaforaAnnotation):
                     views.add(_AnnotationView(spans, (ann.type, view_name, view_value), view_value))
         return views
 
@@ -443,7 +431,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
 
         # update whole-annotation scores
         type_reference_annotations, type_predicted_annotations = results_by_type[ann_type]
-        if _accept(ann_type):
+        if select(ann_type):
             result[ann_type].add(type_reference_annotations, type_predicted_annotations)
 
         # update span and property scores
