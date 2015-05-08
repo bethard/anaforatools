@@ -107,6 +107,8 @@ class TemporalClosureScores(object):
         """
         reference = {a for a in reference if self._is_valid(a)}
         predicted = {a for a in predicted if self._is_valid(a)}
+        reference = self._remove_duplicate_relations(reference)
+        predicted = self._remove_duplicate_relations(predicted)
         self.reference += len(reference)
         self.predicted += len(predicted)
         self.precision_correct += len(self._closure(reference) & predicted)
@@ -165,29 +167,42 @@ class TemporalClosureScores(object):
         # otherwise, temporal closure should work
         return True
 
-    def _to_point_relations(self, annotations):
+    def _remove_duplicate_relations(self, annotations):
+        seen_point_relations = set()
+        result_annotations = set()
+        for annotation in annotations:
+
+            # only include this annotation if no previous annotation expanded to the same point relations
+            point_relations = frozenset(self._to_point_relations(annotation))
+            if point_relations not in seen_point_relations:
+                seen_point_relations.add(point_relations)
+                result_annotations.add(annotation)
+
+        # return the filtered annotations
+        return result_annotations
+
+    def _to_point_relations(self, annotation):
         start = self._start
         end = self._end
 
-        # converts each interval relation to point relations
+        # converts an interval relation to point relations
         point_relations = set()
-        for annotation in annotations:
-            intervals = annotation.spans
-            interval1, interval2 = intervals
+        intervals = annotation.spans
+        interval1, interval2 = intervals
 
-            # the start of an interval is always before its end
-            point_relations.add(((interval1, start), "<", (interval1, end)))
-            point_relations.add(((interval2, start), "<", (interval2, end)))
+        # the start of an interval is always before its end
+        point_relations.add(((interval1, start), "<", (interval1, end)))
+        point_relations.add(((interval2, start), "<", (interval2, end)))
 
-            # use the interval-to-point lookup table to add the necessary point relations
-            for index1, side1, relation, index2, side2 in self._interval_to_point[annotation.value]:
-                point1 = (intervals[index1], side1)
-                point2 = (intervals[index2], side2)
-                point_relations.add((point1, relation, point2))
+        # use the interval-to-point lookup table to add the necessary point relations
+        for index1, side1, relation, index2, side2 in self._interval_to_point[annotation.value]:
+            point1 = (intervals[index1], side1)
+            point2 = (intervals[index2], side2)
+            point_relations.add((point1, relation, point2))
 
-                # for reflexive point relations, add them in the other direction too
-                if relation == "=":
-                    point_relations.add((point2, relation, point1))
+            # for reflexive point relations, add them in the other direction too
+            if relation == "=":
+                point_relations.add((point2, relation, point1))
 
         # return the collected relations
         return point_relations
@@ -224,7 +239,7 @@ class TemporalClosureScores(object):
     def _closure(self, annotations):
 
         # convert interval relations to point relations
-        new_relations = self._to_point_relations(annotations)
+        new_relations = {r for a in annotations for r in self._to_point_relations(a)}
 
         # repeatedly apply point transitivity rules until no new relations can be inferred
         point_relations = set()

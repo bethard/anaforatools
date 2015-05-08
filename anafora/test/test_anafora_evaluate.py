@@ -493,6 +493,7 @@ def test_temporal_closure_scores():
         annotation("I", "G", "BEFORE"),
         annotation("J", "K", "IBEFORE"),
         annotation("K", "L", "BEGUN_BY"),
+        annotation("L", "K", "BEGINS"), # duplicate
         # inferred:
         # A before B
         # A before F
@@ -512,7 +513,10 @@ def test_temporal_closure_scores():
     }
     predicted = {
         annotation("A", "B", "BEFORE"),   # (+)
+        annotation("A", "B", "BEFORE"),   # duplicate
+        annotation("B", "A", "AFTER"),    # duplicate
         annotation("B", "E", "CONTAINS"), # (-)
+        annotation("B", "E", "INCLUDES"), # duplicate
         annotation("B", "F", "BEFORE"),   # (+)
         annotation("F", "D", "AFTER"),    # (+)
         annotation("H", "I", "AFTER"),    # (+)
