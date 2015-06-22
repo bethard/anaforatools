@@ -79,7 +79,10 @@ class AnaforaData(_XMLWrapper):
 
     @classmethod
     def from_file(cls, xml_path):
-        return cls(ElementTree.parse(xml_path).getroot())
+        try:
+            return cls(ElementTree.parse(xml_path).getroot())
+        except ElementTree.ParseError as e:
+            raise ValueError("invalid XML file {0}: {1}".format(xml_path, e))
 
     def indent(self, string="\t"):
         # http://effbot.org/zone/element-lib.htm#prettyprint

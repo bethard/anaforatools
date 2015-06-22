@@ -56,25 +56,32 @@ def _main(input_dir, output_dir, xml_name_regex="[.]xml$", include=None, exclude
             data = anafora.AnaforaData.from_file(xml_path)
 
             # find annotations and properties to remove
-            to_remove = []
+            annotations_to_remove = []
+            annotation_properties_to_remove = []
             for annotation in data.annotations:
 
                 # remove the annotation if its type has not been selected
                 if not select(annotation.type):
-                    to_remove.append(annotation)
+                    annotations_to_remove.append(annotation)
                 else:
                     for name, value in annotation.properties.items():
 
                         # remove the property if its name or value has not been selected
                         if not select(annotation.type, name, value):
-                            del annotation.properties[name]
+                            annotation_properties_to_remove.append((annotation, name))
 
-            # do the actual removal of annotations here so we don't a concurrent modification problem
-            for annotation in to_remove:
+            # if we're overwriting, save a backup of the original
+            if annotations_to_remove or annotation_properties_to_remove:
+                data.to_file(xml_path + ".bak")
+
+            # do the actual removal of annotations here
+            for annotation in annotations_to_remove:
                 data.annotations.remove(annotation)
+            for annotation, name in annotation_properties_to_remove:
+                del annotation.properties[name]
 
             # writes out the modified data to the output file
-            output_sub_dir = os.path.join(output_dir, sub_dir)
+            output_sub_dir = os.path.join(output_dir or input_dir, sub_dir)
             if not os.path.exists(output_sub_dir):
                 os.makedirs(output_sub_dir)
             output_path = os.path.join(output_sub_dir, xml_name)
@@ -88,7 +95,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", metavar="DIR", required=True, dest="input_dir",
                         help="The root of a set of Anafora annotation XML directories.")
-    parser.add_argument("-o", "--output", metavar="DIR", required=True, dest="output_dir",
+    parser.add_argument("-o", "--output", metavar="DIR", dest="output_dir",
                         help="The directory where the cleaned versions of the Anafora annotation XML files should be " +
                              "written. The directory structure will mirror the input directory structure.")
     parser.add_argument("-x", "--xml-name-regex", metavar="REGEX", default="[.]xml$",
