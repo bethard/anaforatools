@@ -72,8 +72,8 @@ def convert_thyme_qa_to_anafora_xml(input_dir, output_dir):
     _annotation_sep_pattern = regex.compile(r'\s*-----+\s*')
     _annotation_pattern = regex.compile(r'^Question:(.*?)\nAnswer:(.*?)\nConfidence:(.*?)\n' +
                                         r'Difficulty:(.*?)\nDocTimeRel:(.*?)\n(Text Clip:.*)$', regex.DOTALL)
-    _text_clip_pattern = regex.compile(r'Text Clip:\s+\d+[.]\s+(\d+),(\d+) (Exact|Support)_Answer ' +
-                                       r'Use_(Time_Span|DocTimeRel) (.*)\n(.*)(?:\n|$)')
+    _text_clip_pattern = regex.compile(r'Text Clip:\s+\d[\w.]*\s+(\d+),(\d+) (Exact|Support)_Answer ' +
+                                       r'Use_(Time_Span|DocTimeRel) ?(.*)\n(.*)(?:\n|$)')
 
     # iterate through all _qa.txt files in the input directory
     for input_root, dir_names, input_file_names in os.walk(input_dir):
@@ -83,7 +83,8 @@ def convert_thyme_qa_to_anafora_xml(input_dir, output_dir):
 
                 # create one Anafora XML for each file
                 data = anafora.AnaforaData()
-                count = 1
+                relation_count = 1
+                entity_count = 1
                 with open(os.path.join(input_root, input_file_name)) as input_file:
                     text = input_file.read().decode('ascii')
 
@@ -92,26 +93,47 @@ def convert_thyme_qa_to_anafora_xml(input_dir, output_dir):
                     for annotation_text in _annotation_sep_pattern.split(body_text.rstrip(" \n\r-")):
                         match = _annotation_pattern.match(annotation_text)
                         if match is None:
-                            raise ValueError("Invalid annotation text: " + annotation_text)
-                        question, answer, confidence, difficulty, doc_time_rel, text_clip_text = match.groups()
+                            raise ValueError("Invalid annotation text:\n" + annotation_text)
+                        groups = [s.strip() for s in match.groups()]
+                        question, answer, confidence, difficulty, doc_time_rel, text_clip_text = groups
                         text_clip_matches = _text_clip_pattern.findall(text_clip_text)
                         if len(text_clip_text.splitlines()) != 2 * len(text_clip_matches):
-                            raise ValueError("Invalid Text Clips in annotation text: " + annotation_text)
+                            raise ValueError("Invalid Text Clips in annotation text:\n" + annotation_text)
 
-                        # create Anafora XML annotations from the THYME question-answer annotations
+                        # create Anafora XML annotations for the answers
+                        entities = []
                         for begin_text, end_text, _, time_or_doc_time_rel, type_text, clip_text in text_clip_matches:
                             begin = int(begin_text)
                             end = int(end_text)
-                            entity = anafora.AnaforaEntity()
-                            entity.id = '{0:d}@{1}@{2}@gold'.format(count, 'e', file_base)
-                            entity.spans = ((begin, end),)
-                            # TODO: decode type_text and generate corresponding attributes/annotations
-                            data.annotations.append(entity)
-                            count += 1
+                            entity_annotation = anafora.AnaforaEntity()
+                            entity_annotation.id = '{0:d}@{1}@{2}@gold'.format(entity_count, 'e', file_base)
+                            entity_annotation.spans = ((begin, end),)
+                            entity_annotation.type = 'EVENT'
+                            entity_annotation.parents_type = 'TemporalEntities'
+                            if time_or_doc_time_rel == 'DocTimeRel':
+                                entity_annotation.properties['DocTimeRel'] = doc_time_rel.upper()
+                            entity_count += 1
+                            data.annotations.append(entity_annotation)
+                            entities.append(entity_annotation)
+
+                        # create an Anafora XML annotation for the question
+                        question_annotation = anafora.AnaforaRelation()
+                        question_annotation.id = '{0:d}@{1}@{2}@gold'.format(relation_count, 'r', file_base)
+                        question_annotation.type = 'Question'
+                        question_annotation.parents_type = 'TemporalQuestions'
+                        question_annotation.properties['Question'] = question
+                        question_annotation.properties['Confidence'] = confidence
+                        question_annotation.properties['Difficulty'] = difficulty
+                        # FIXME: hacking XML here because current API doesn't allow properties with multiple values
+                        for entity in entities:
+                            property_elem = anafora.ElementTree.SubElement(question_annotation.properties.xml, 'Answer')
+                            property_elem.text = entity.id
+                        data.annotations.append(question_annotation)
+                        relation_count += 1
 
                 # write the Anafora data out as XML
                 output_file_dir = os.path.join(output_dir, file_base)
-                output_file_path = os.path.join(output_file_dir, file_base + ".xml")
+                output_file_path = os.path.join(output_file_dir, file_base + ".THYME_QA.preannotation.completed.xml")
                 if not os.path.exists(output_file_dir):
                     os.makedirs(output_file_dir)
                 data.indent()
