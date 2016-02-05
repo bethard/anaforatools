@@ -447,6 +447,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
         # update whole-annotation scores
         type_reference_annotations, type_predicted_annotations = results_by_type[ann_type]
         if select(ann_type):
+            result["*"].add(type_reference_annotations, type_predicted_annotations)
             result[ann_type].add(type_reference_annotations, type_predicted_annotations)
 
         # update span and property scores
@@ -456,6 +457,8 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
         for view_name in sorted(results_by_view):
             view_reference_annotations, view_predicted_annotations = results_by_view[view_name]
             result[view_name].add(view_reference_annotations, view_predicted_annotations)
+            if isinstance(view_name, tuple) and len(view_name) == 2 and view_name[1] == "<span>":
+                result["*", "<span>"].add(view_reference_annotations, view_predicted_annotations)
 
     # return the collected scores
     return result
