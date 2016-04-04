@@ -157,10 +157,11 @@ class RegexAnnotator(object):
         span_type_annotation_map = {}
         for annotation in data.annotations:
             span_type_annotation_map[annotation.spans, annotation.type] = annotation
-            if annotation.type in self.default_type_attributes_map:
-                for key, value in self.default_type_attributes_map[annotation.type].items():
-                    if key not in annotation.properties:
-                        annotation.properties[key] = value
+            if self.default_type_attributes_map is not None:
+                if annotation.type in self.default_type_attributes_map:
+                    for key, value in self.default_type_attributes_map[annotation.type].items():
+                        if key not in annotation.properties:
+                            annotation.properties[key] = value
 
         # create an overall regular expression where longest expressions are matched first
         # NOTE: we have to use the regex library, not the re library, because we need more that 100 groups
@@ -269,13 +270,13 @@ def _train(train_dir, model_file, text_dir=None, xml_name_regex="[.]xml$", text_
     model.to_file(model_file)
 
 
-def _annotate(model_file, text_dir, output_dir, data_dir=None,
+def _annotate(model_file, text_dir, output_dir, data_dir=None, xml_name_regex="[.]xml$",
               text_encoding="utf-8", extension=".system.completed.xml"):
 
     if data_dir is None:
         iterator = anafora.walk_flat_to_anafora(text_dir)
     else:
-        iterator = anafora.walk_anafora_to_anafora(data_dir)
+        iterator = anafora.walk_anafora_to_anafora(data_dir, xml_name_regex)
 
     # load a model from the file
     model = RegexAnnotator.from_file(model_file)
@@ -338,6 +339,10 @@ if __name__ == "__main__":
                                  help="The raw text that should be annotated with the regex model")
     annotate_parser.add_argument("-d", "--data", metavar="DIR", dest="data_dir",
                                  help="A directory of pre-annotated Anafora XMLs for the given raw text")
+    annotate_parser.add_argument("-x", "--xml-name-regex", metavar="REGEX", default="[.]xml$",
+                                 help="A regular expression for matching XML files in the subdirectories, typically " +
+                                      "used to restrict the evaluation to a subset of the available files (default: " +
+                                      "%(default)r)")
     annotate_parser.add_argument("-o", "--output", metavar="DIR", required=True, dest="output_dir",
                                  help="The directory where the Anafora XML files containing the model predictions " +
                                       "should be written.")
