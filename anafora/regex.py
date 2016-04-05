@@ -286,7 +286,8 @@ def _annotate(model_file, text_dir, output_dir, data_dir=None, xml_name_regex="[
         if data_dir is None:
             data_iter = [(anafora.AnaforaData(), text_name + extension)]
         else:
-            data_iter = [(anafora.AnaforaData.from_file(os.path.join(data_dir, input_sub_dir, xml_name)), xml_name)
+            data_iter = [(anafora.AnaforaData.from_file(os.path.join(data_dir, input_sub_dir, xml_name)),
+                          regex.sub(r'[.][^.]*[.][^.]*[.][^.]*[.]xml', extension, xml_name))
                          for xml_name in xml_names]
 
         for data, output_name in data_iter:
