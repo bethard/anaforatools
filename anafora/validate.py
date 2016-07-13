@@ -13,9 +13,10 @@ class Schema(object):
         """
         default_attribute_elem = xml.find("defaultattribute")
         definition_elem = xml.find("definition")
-        entities_elem = definition_elem.find("entities")
-        relations_elem = definition_elem.find("relations")
-        if entities_elem is None and relations_elem is None:
+        entities_elems = definition_elem.findall("entities")
+        relations_elems = definition_elem.findall("relations")
+        annotations_elems = entities_elems + relations_elems
+        if not annotations_elems:
             raise ValueError("no entities or relations in schema")
 
         self.default_attributes = {}
@@ -24,7 +25,7 @@ class Schema(object):
                 self.default_attributes[attribute_elem.tag] = attribute_elem.text
 
         self.type_to_properties = {}
-        for annotations_elem in [entities_elem, relations_elem]:
+        for annotations_elem in annotations_elems:
             if annotations_elem is not None:
                 for annotation_elem in annotations_elem:
                     annotation_type = annotation_elem.attrib["type"]
@@ -58,10 +59,14 @@ class Schema(object):
                 raise SchemaValidationError(msg.format(name, annotation.type))
             schema_property = schema_properties[name]
             if schema_property.instance_of is not None:
-                if not isinstance(value, anafora.AnaforaAnnotation):
+                if value is None:
+                    if schema_property.required:
+                        msg = 'missing value for property {0!r} of annotation type {1!r}'
+                        raise SchemaValidationError(msg.format(schema_property.type, annotation.type))
+                elif not isinstance(value, anafora.AnaforaAnnotation):
                     msg = 'invalid value {0!r} for property {1!r} of annotation type {2!r}'
                     raise SchemaValidationError(msg.format(value, schema_property.type, annotation.type))
-                if not value.type in schema_property.instance_of:
+                elif not value.type in schema_property.instance_of:
                     msg = 'invalid type {0!r} for property {1!r} of annotation type {2!r}'
                     raise SchemaValidationError(msg.format(value.type, schema_property.type, annotation.type))
             if schema_property.choices is not None:
