@@ -179,7 +179,6 @@ class AnaforaAnnotation(_XMLWrapper):
             isinstance(other, AnaforaAnnotation) and
             self.spans == other.spans and
             self.type == other.type and
-            self.parents_type == other.parents_type and
             self.properties == other.properties)
 
     def __ne__(self, other):
@@ -188,7 +187,6 @@ class AnaforaAnnotation(_XMLWrapper):
     def __hash__(self):
         result = hash(self.spans)
         result = 31 * result + hash(self.type)
-        result = 31 * result + hash(self.parents_type)
         result = 31 * result + hash(self.properties)
         return result
 
