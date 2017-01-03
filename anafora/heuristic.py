@@ -41,7 +41,8 @@ def add_relations_to_closest(data, source_type, target_type,
     # add a relation for each source entity
     target_entities = list(data.annotations.select_type(target_type))
     if target_entities:
-        for source_entity in data.annotations.select_type(source_type):
+        source_entities = list(data.annotations.select_type(source_type))
+        for source_entity in source_entities:
 
             # distance to an annotation is the minimum distance to any one of its character offsets
             def distance_to_source_entity(entity):
@@ -60,6 +61,8 @@ def add_relations_to_closest(data, source_type, target_type,
             if relation_other_properties is not None:
                 for name, value in relation_other_properties:
                     relation.properties[name] = value
+
+    data.indent()
 
 
 if __name__ == "__main__":
