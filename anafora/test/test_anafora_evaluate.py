@@ -524,6 +524,44 @@ def test_score_data_overlap():
     assert scores.predicted == 2
 
 
+def test_missing_ignored_properties():
+    reference = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>4</id>
+                <type>Z</type>
+                <properties>
+                    <A>1</A>
+                    <B>2</B>
+                    <C>3</C>
+                </properties>
+            </entity>
+        </annotations>
+    </data>
+    """))
+    predicted = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>4</id>
+                <type>Z</type>
+                <properties>
+                    <A>1</A>
+                    <B>2</B>
+                </properties>
+            </entity>
+        </annotations>
+    </data>
+    """))
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude=[("Z", "C")])
+    scores = named_scores["Z"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+
 def test_temporal_closure_scores():
 
     def annotation(source, target, value):

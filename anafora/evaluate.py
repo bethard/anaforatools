@@ -2,6 +2,7 @@ __author__ = 'bethard'
 
 import argparse
 import collections
+import copy
 import functools
 import glob
 import logging
@@ -433,6 +434,16 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
     # get reference and predicted annotations
     reference_annotations = reference_data.annotations
     predicted_annotations = [] if predicted_data is None else predicted_data.annotations
+
+    # FIXME: this avoids counting excluded properties, but modifies the data
+    def _del_excluded_properties(annotations):
+        for ann in annotations:
+            if select(ann.type):
+                for name in list(ann.properties):
+                    if not select(ann.type, name):
+                        del ann.properties[name]
+    _del_excluded_properties(reference_annotations)
+    _del_excluded_properties(predicted_annotations)
 
     # if necessary, wrap the annotations in a wrapper class
     if annotation_wrapper is not None:
