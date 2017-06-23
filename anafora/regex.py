@@ -273,10 +273,12 @@ def _train(train_dir, model_file, text_dir=None, xml_name_regex="[.]xml$", text_
 def _annotate(model_file, text_dir, output_dir, data_dir=None, xml_name_regex="[.]xml$",
               text_encoding="utf-8", extension=".system.completed.xml"):
 
-    if data_dir is None:
+    if text_dir is not None:
         iterator = anafora.walk_flat_to_anafora(text_dir)
-    else:
+    elif data_dir is not None:
         iterator = anafora.walk_anafora_to_anafora(data_dir, xml_name_regex)
+    else:
+        iterator = anafora.walk_anafora_to_anafora(output_dir, xml_name_regex)
 
     # load a model from the file
     model = RegexAnnotator.from_file(model_file)
@@ -292,7 +294,12 @@ def _annotate(model_file, text_dir, output_dir, data_dir=None, xml_name_regex="[
 
         for data, output_name in data_iter:
             # read in the text
-            text_path = os.path.join(text_dir, text_name)
+            if text_dir is not None:
+                text_path = os.path.join(text_dir, text_name)
+            elif data_dir is not None:
+                text_path = os.path.join(data_dir, input_sub_dir, text_name)
+            else:
+                text_path = os.path.join(output_dir, input_sub_dir, text_name)
             with codecs.open(text_path, 'r', text_encoding) as text_file:
                 text = text_file.read()
 
@@ -336,7 +343,7 @@ if __name__ == "__main__":
     annotate_parser.set_defaults(func=_annotate)
     annotate_parser.add_argument("-m", "--model", metavar="FILE", dest="model_file", required=True,
                                  help="The file containing the trained regex model.")
-    annotate_parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir", required=True,
+    annotate_parser.add_argument("-t", "--text", metavar="DIR", dest="text_dir",
                                  help="The raw text that should be annotated with the regex model")
     annotate_parser.add_argument("-d", "--data", metavar="DIR", dest="data_dir",
                                  help="A directory of pre-annotated Anafora XMLs for the given raw text")
