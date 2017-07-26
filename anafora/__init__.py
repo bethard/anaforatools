@@ -103,7 +103,7 @@ class AnaforaData(_XMLWrapper):
         _indent(self.xml)
 
     def to_file(self, xml_path):
-        ElementTree.ElementTree(self.xml).write(xml_path, encoding="UTF-8", xml_declaration=True)
+        ElementTree.ElementTree(self.xml).write(xml_path, encoding="UTF-8", xml_declaration=True, short_empty_elements=False)
 
 
 class AnaforaAnnotations(_XMLWrapper):
@@ -303,7 +303,12 @@ class AnaforaProperties(_XMLWrapper):
             self.xml = ElementTree.SubElement(self._annotation.xml, "properties")
         property_elem = self.xml.find(name)
         if property_elem is None:
+            old_tail = None
+            if len(self.xml) > 0:
+                old_tail = self.xml[-1].tail
+                self.xml[-1].tail = self.xml.text
             property_elem = ElementTree.SubElement(self.xml, name)
+            property_elem.tail = old_tail
             self._tag_to_property_xml[name] = property_elem
         if isinstance(value, AnaforaAnnotation):
             property_elem.text = value.id
