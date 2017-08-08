@@ -58,7 +58,13 @@ if __name__ == "__main__":
         metavar="REGEX", default=".*completed.*[.]xml$",
         help="The regular expression which identifies Anafora XML files " +
              "(default: %(default)r).")
-    parser.add_argument("--format", choices=format_funcs, default="plain")
+    parser.add_argument(
+        "--format", choices=format_funcs, default="plain",
+        help="The format of files in the text directory " +
+             "(default: %(default)r). When the 'timeml' format is selected, " +
+             "TimeML files are expected to have the extension '.tml', and " +
+             "the text of a '.tml' file is the result of stripping that file " +
+             "of all its XML tags.")
     parser.add_argument("text_dir")
     parser.add_argument("anafora_dir")
 
