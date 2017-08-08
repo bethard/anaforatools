@@ -13,6 +13,13 @@ def to_text(timeml_path):
     return ''.join(anafora.ElementTree.parse(timeml_path).getroot().itertext())
 
 
+def to_document_creation_time(timeml_path):
+    root = anafora.ElementTree.parse(timeml_path).getroot()
+    dct_xpath = ".//TIMEX3[@functionInDocument='CREATION_TIME']"
+    for timex3 in root.iterfind(dct_xpath):
+        return timex3.attrib["value"]
+
+
 def to_anafora_data(timeml_path):
     """
     :param xml.etree.ElementTree.Element timeml_path: path of the TimeML XML

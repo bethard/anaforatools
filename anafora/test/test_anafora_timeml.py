@@ -115,6 +115,13 @@ def test_to_text(tmpdir):
     assert anafora.timeml.to_text(str(path)) == text
 
 
+def test_to_document_creation_time(tmpdir):
+    path = tmpdir.join("APW19981205_0374.tml")
+    path.write(APW19981205_0374_tml)
+    assert anafora.timeml.to_document_creation_time(str(path)) == "1998-12-05T09:42:00"
+
+
+
 def test_to_anafora_data(tmpdir):
     path = tmpdir.join("APW19981205_0374.tml")
     path.write(APW19981205_0374_tml)
