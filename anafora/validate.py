@@ -45,6 +45,9 @@ class Schema(object):
         """
         :param AnaforaAnnotation annotation: the annotation to be validated
         """
+        if annotation.is_self_referential():
+            msg = '{0!r} is self-referential'
+            raise SchemaValidationError(msg.format(annotation.id))
         schema_properties = self.type_to_properties.get(annotation.type)
         if schema_properties is None:
             msg = 'invalid annotation type {0!r}'
@@ -127,7 +130,9 @@ def log_schema_errors(schema, anafora_dir, xml_name_regex):
             try:
                 data = anafora.AnaforaData.from_file(xml_path)
             except anafora.ElementTree.ParseError:
-                logging.warn("%s: invalid XML", xml_path)
+                logging.error("%s: invalid XML", xml_path)
+            except Exception as e:
+                logging.error("%s: %s", xml_path, e)
             else:
                 for annotation, error in schema.errors(data):
                     logging.warn("%s: %s", xml_path, error)
