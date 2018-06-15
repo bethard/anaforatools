@@ -151,17 +151,14 @@ class TemporalClosureScores(object):
 
     def _is_valid(self, annotation):
 
-        # temporal closure only makes sense on a single property, not an entire annotation
-        if not isinstance(annotation, _AnnotationView):
-            raise RuntimeError("temporal closure cannot be applied to {0}".format(annotation))
-
-        # temporal closure only makes sense with binary relations
-        if len(annotation.spans) != 2:
-            logging.warning("invalid spans for temporal closure {0}".format(annotation))
-            return False
+        # temporal closure only makes sense with binary relations on a single property
+        try:
+            (start, end), _, _, (name, value) = annotation
+        except (TypeError, ValueError):
+            raise RuntimeError("temporal closure expects binary spans and a single property, but found {0}".format(annotation))
 
         # temporal closure only works on a defined set of temporal relations
-        if annotation.value not in self._interval_to_point:
+        if value not in self._interval_to_point:
             logging.warning("invalid relation for temporal closure {0}".format(annotation))
             return False
 
@@ -188,7 +185,7 @@ class TemporalClosureScores(object):
 
         # converts an interval relation to point relations
         point_relations = set()
-        intervals = annotation.spans
+        intervals, _, _, (_, value) = annotation
         interval1, interval2 = intervals
 
         # the start of an interval is always before its end
@@ -196,7 +193,7 @@ class TemporalClosureScores(object):
         point_relations.add(((interval2, start), "<", (interval2, end)))
 
         # use the interval-to-point lookup table to add the necessary point relations
-        for index1, side1, relation, index2, side2 in self._interval_to_point[annotation.value]:
+        for index1, side1, relation, index2, side2 in self._interval_to_point[value]:
             point1 = (intervals[index1], side1)
             point2 = (intervals[index2], side2)
             point_relations.add((point1, relation, point2))
@@ -209,12 +206,11 @@ class TemporalClosureScores(object):
         return point_relations
 
     def _to_interval_relations(self, point_relations, annotations):
-
         # map intervals to names
         interval_names = collections.defaultdict(set)
-        for annotation in annotations:
-            for span in annotation.spans:
-                interval_names[span].add(annotation.name)
+        for spans, ann_name, parent_name, (prop_name, _) in annotations:
+            for span in spans:
+                interval_names[span].add((ann_name, parent_name, prop_name))
 
         # find all pairs of intervals that have some point relation between them (and whose names match)
         pair_names = {}
@@ -231,8 +227,8 @@ class TemporalClosureScores(object):
             for relation, requirements in self._interval_to_point.items():
                 if all(((pair[i1], s1), r, (pair[i2], s2)) in point_relations
                        for i1, s1, r, i2, s2 in requirements):
-                    for name in names:
-                        interval_relations.add(_AnnotationView(pair, name, relation))
+                    for ann_name, parent_name, prop_name in names:
+                        interval_relations.add((pair, ann_name, parent_name, (prop_name, relation)))
 
         # return the collected relations
         return interval_relations
@@ -298,67 +294,20 @@ class TemporalClosureScores(object):
     }
 
 
-# This is basically a hack to redefine span hashing and equality for all annotations
-@functools.total_ordering
-class _OverlappingWrapper(object):
-    def __init__(self, annotation, seen=None):
-        self.annotation = annotation
-        self.type = self.annotation.type
-        self.parents_type = self.annotation.parents_type
-        self.spans = tuple(self._to_overlapping_spans(self.annotation.spans))
-        if seen is None:
-            seen = set()
-        self.properties = {}
-        for name, value in self.annotation.properties.items():
-            if id(value) not in seen:
-                seen.add(id(value))
-                if isinstance(value, anafora.AnaforaAnnotation):
-                    self.properties[name] = _OverlappingWrapper(value, seen)
-                else:
-                    self.properties[name] = value
-
-    def _to_overlapping_spans(self, items):
-        if isinstance(items, tuple) and isinstance(items[0], tuple) and isinstance(items[0][0], int):
-            yield _OverlappingSpans(items)
-        else:
-            for item in items:
-                for overlapping_spans in self._to_overlapping_spans(item):
-                    yield overlapping_spans
-
-    @property
-    def __class__(self):
-        return anafora.AnaforaAnnotation
-
-    def _key(self):
-        return self.spans, self.type, self.parents_type, self.properties
-
-    def __eq__(self, other):
-        return (
-            isinstance(other, _OverlappingWrapper) and
-            self.spans == other.spans and
-            self.type == other.type and
-            self.parents_type == other.parents_type and
-            self.properties == other.properties)
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __hash__(self):
-        result = 0
-        for item in self.properties.items():
-            result += hash(item)
-        return result
-
-    def __lt__(self, other):
-        return self.spans < other.spans
-
-    def __repr__(self):
-        return "{0}({1})".format(self.__class__.__name__, self.annotation)
-
-
-# This is part of the hack above to redefine span hashing and equality for all annotations
 @functools.total_ordering
 class _OverlappingSpans(object):
+    @classmethod
+    def from_tuple(cls, tup):
+        if isinstance(tup, tuple) and tup:
+            child = tup[0]
+            if isinstance(child, tuple) and child:
+                grandchild = child[0]
+                if isinstance(grandchild, int):
+                    return cls(tup)
+            if len(tup) == 1:
+                return cls.from_tuple(tup[0])
+        return tuple(cls.from_tuple(x) for x in tup)
+
     def __init__(self, spans):
         self.spans = spans
 
@@ -385,12 +334,52 @@ class _OverlappingSpans(object):
         return "{0}({1})".format(self.__class__.__name__, self.spans)
 
 
-# A type used to capture just a part of an annotation, e.g., just its spans, or just a single property
-_AnnotationView = collections.namedtuple("AnnotationView", ["spans", "name", "value"])
+class ToSet(object):
+    def __init__(self,
+                 select,
+                 spans_type=None,
+                 ann_type="*",
+                 prop_name="*",
+                 prop_value="*"):
+        self.select = select
+        self.spans_type = spans_type
+        self.ann_type = ann_type
+        self.prop_name = prop_name
+        self.prop_value = prop_value
+
+    def accept(self, annotation):
+        if self.select(annotation.type, self.prop_name, self.prop_value):
+            if self.ann_type == "*" or annotation.type == self.ann_type:
+                if self.prop_name == "*" or self.prop_value == "*":
+                    return True
+                if self.prop_name is not None:
+                    if annotation.properties[self.prop_name] == self.prop_value:
+                        return True
+        return False
+
+    def key(self, annotation):
+        if not isinstance(annotation, anafora.AnaforaAnnotation):
+            return annotation
+        spans = annotation.spans
+        if self.spans_type is not None:
+            spans = self.spans_type.from_tuple(spans)
+        props = None
+        if self.prop_name == "*":
+            props = tuple((name, self.key(value))
+                          for name, value in annotation.properties.items()
+                          if self.select(annotation.type, name, value))
+        elif self.prop_name is not None:
+            if self.select(annotation.type, self.prop_name) or \
+                    self.select(annotation.type, self.prop_name, self.prop_value):
+                props = self.prop_name, annotation.properties[self.prop_name]
+        return spans, annotation.type, annotation.parents_type, props
+
+    def __call__(self, iterable):
+        return {self.key(x) for x in iterable if self.accept(x)}
 
 
 def score_data(reference_data, predicted_data, include=None, exclude=None,
-               scores_type=Scores, annotation_wrapper=None):
+               scores_type=Scores, spans_type=None):
     """
     :param AnaforaData reference_data: reference ("gold standard") Anafora data
     :param AnaforaData predicted_data: predicted (system-generated) Anafora data
@@ -399,7 +388,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
         (type-name, property-name, property-value) tuples
     :param type scores_type: type for calculating matches between predictions and reference
-    :param type annotation_wrapper: wrapper type to apply to AnaforaAnnotations
+    :param type spans_type: wrapper object to apply to annotation spans
     :return dict: mapping from (annotation type[, property name[, property value]]) to Scores object
     """
 
@@ -414,62 +403,58 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
     # returns true if this type:property:value is accepted by includes= and excludes=
     select = anafora.select.Select(include, exclude)
 
-    # generates a view of just the annotation's spans, and of each of its selected properties
-    def _views(annotations):
-        views = set()
-        for ann in annotations:
-            spans = ann.spans
-            if select(ann.type, "<span>"):
-                views.add(_AnnotationView(spans, (ann.type, "<span>"), None))
-            for view_name in ann.properties:
-                view_value = ann.properties[view_name]
-                if view_value is None:
-                    view_value = '<none>'
-                if select(ann.type, view_name):
-                    views.add(_AnnotationView(spans, (ann.type, view_name), view_value))
-                if select(ann.type, view_name, view_value) and not isinstance(view_value, anafora.AnaforaAnnotation):
-                    views.add(_AnnotationView(spans, (ann.type, view_name, view_value), view_value))
-        return views
-
     # get reference and predicted annotations
     reference_annotations = reference_data.annotations
     predicted_annotations = [] if predicted_data is None else predicted_data.annotations
 
-    # FIXME: this avoids counting excluded properties, but modifies the data
-    def _del_excluded_properties(annotations):
+    # determines available views by examining all the annotations
+    span = "<span>"
+    views = {}
+    if select("*"):
+        views["*"] = ToSet(select=select,
+                           spans_type=spans_type)
+    if select("*", span):
+        views["*", span] = ToSet(select=select,
+                                 spans_type=spans_type,
+                                 prop_name=None)
+    for annotations in [reference_annotations, predicted_annotations]:
         for ann in annotations:
-            if select(ann.type):
-                for name in list(ann.properties):
-                    if not select(ann.type, name):
-                        del ann.properties[name]
-    _del_excluded_properties(reference_annotations)
-    _del_excluded_properties(predicted_annotations)
-
-    # if necessary, wrap the annotations in a wrapper class
-    if annotation_wrapper is not None:
-        reference_annotations = map(annotation_wrapper, reference_annotations)
-        predicted_annotations = map(annotation_wrapper, predicted_annotations)
+            if ann.type not in views:
+                if select(ann.type):
+                    views[ann.type] = ToSet(select=select,
+                                            spans_type=spans_type,
+                                            ann_type=ann.type)
+            if (ann.type, span) not in views:
+                if select(ann.type, span):
+                    views[ann.type, span] = ToSet(select=select,
+                                                  spans_type=spans_type,
+                                                  ann_type=ann.type,
+                                                  prop_name=None)
+            for prop_name, prop_value in ann.properties.items():
+                if (ann.type, prop_name) not in views:
+                    if select(ann.type, prop_name):
+                        views[ann.type, prop_name] = ToSet(
+                            select=select,
+                            spans_type=spans_type,
+                            ann_type=ann.type,
+                            prop_name=prop_name)
+                if not isinstance(prop_value, anafora.AnaforaAnnotation):
+                    if (ann.type, prop_name, prop_value) not in views:
+                        if select(ann.type, prop_name, prop_value):
+                            views[ann.type, prop_name, prop_value] = ToSet(
+                                select=select,
+                                spans_type=spans_type,
+                                ann_type=ann.type,
+                                prop_name=prop_name,
+                                prop_value=prop_value)
 
     # fill a mapping from a name (type, type:property or type:property:value) to the corresponding scores
     result = collections.defaultdict(lambda: scores_type())
-    results_by_type = _group_by(reference_annotations, predicted_annotations, lambda a: a.type)
-    for ann_type in sorted(results_by_type):
-
-        # update whole-annotation scores
-        type_reference_annotations, type_predicted_annotations = results_by_type[ann_type]
-        if select(ann_type):
-            result["*"].add(type_reference_annotations, type_predicted_annotations)
-            result[ann_type].add(type_reference_annotations, type_predicted_annotations)
-
-        # update span and property scores
-        reference_views = _views(type_reference_annotations)
-        predicted_views = _views(type_predicted_annotations)
-        results_by_view = _group_by(reference_views, predicted_views, lambda t: t.name)
-        for view_name in sorted(results_by_view):
-            view_reference_annotations, view_predicted_annotations = results_by_view[view_name]
-            result[view_name].add(view_reference_annotations, view_predicted_annotations)
-            if isinstance(view_name, tuple) and len(view_name) == 2 and view_name[1] == "<span>":
-                result["*", "<span>"].add(view_reference_annotations, view_predicted_annotations)
+    for view_name in sorted(views, key=lambda x: x if isinstance(x, tuple) else (x,)):
+        to_set = views[view_name]
+        set1 = to_set(reference_annotations)
+        set2 = to_set(predicted_annotations)
+        result[view_name].add(set1, set2)
 
     # return the collected scores
     return result
@@ -495,7 +480,7 @@ def _load(xml_path):
 
 
 def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=None,
-               include=None, exclude=None, scores_type=Scores, annotation_wrapper=None):
+               include=None, exclude=None, scores_type=Scores, spans_type=None):
     """
     :param string reference_dir: directory containing reference ("gold standard") Anafora XML directories
     :param string predicted_dir: directory containing predicted (system-generated) Anafora XML directories
@@ -507,7 +492,7 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
         (type-name, property-name, property-value) tuples
     :param type scores_type: type for calculating matches between predictions and reference
-    :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
+    :param type spans_type: wrapper object to apply to annotation spans
     :return iter: an iterator of (file-name, name-to-scores) where name-to-scores is a mapping from
         (annotation type[, property name[, property value]]) to a Scores object
     """
@@ -584,7 +569,7 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
 
         # score this data and update the overall scores
         named_scores = score_data(reference_data, predicted_data, include, exclude,
-                                  scores_type=scores_type, annotation_wrapper=annotation_wrapper)
+                                  scores_type=scores_type, spans_type=spans_type)
         for name, scores in named_scores.items():
 
             # if there were some predictions, and if we're using scores that keep track of errors, log the errors
@@ -595,8 +580,9 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
         # generate the file name and the resulting scores
         yield text_name, named_scores
 
+
 def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
-                     scores_type=Scores, annotation_wrapper=None):
+                     scores_type=Scores, spans_type=None):
     """
     :param anafora_dir: directory containing Anafora XML directories
     :param xml_name_regex: regular expression matching the annotator files to be compared
@@ -605,7 +591,7 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
     :param set exclude: types of annotations to exclude; may be type names, (type-name, property-name) tuples,
         (type-name, property-name, property-value) tuples
     :param type scores_type: type for calculating matches between predictions and reference
-    :param type annotation_wrapper: wrapper object to apply to AnaforaAnnotations
+    :param type spans_type: wrapper object to apply to annotation spans
     :return iter: an iterator of (file-name, name-to-scores) where name-to-scores is a mapping from
         (annotation type[, property name[, property value]]) to a Scores object
     """
@@ -659,7 +645,7 @@ def score_annotators(anafora_dir, xml_name_regex, include=None, exclude=None,
 
                 # perform the comparison of the two annotation sets and update the overall scores
                 named_scores = score_data(data1, data2, include, exclude,
-                                          scores_type=scores_type, annotation_wrapper=annotation_wrapper)
+                                          scores_type=scores_type, spans_type=spans_type)
 
                 # add annotators as prefixes
                 for name, scores in named_scores.items():
@@ -742,7 +728,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_const", const=DebuggingScores, dest="scores_type",
                         help="Include more information in the output, such as the reference expressions that were " +
                              "and the predicted expressions that were not in the reference.")
-    parser.add_argument("--overlap", dest="annotation_wrapper", action="store_const", const=_OverlappingWrapper,
+    parser.add_argument("--overlap", dest="spans_type", action="store_const", const=_OverlappingSpans,
                         help="Count predicted annotation spans as correct if they overlap by one character or more " +
                              "with a reference annotation span. Not intended as a real evaluation method (since what " +
                              "to do with multiple matches is not well defined) but useful for debugging purposes.")
@@ -761,7 +747,7 @@ if __name__ == "__main__":
             include=args.include,
             exclude=args.exclude,
             scores_type=args.scores_type,
-            annotation_wrapper=args.annotation_wrapper)
+            spans_type=args.spans_type)
     else:
         _file_named_scores = score_annotators(
             anafora_dir=args.reference_dir,
@@ -769,7 +755,7 @@ if __name__ == "__main__":
             include=args.include,
             exclude=args.exclude,
             scores_type=args.scores_type,
-            annotation_wrapper=args.annotation_wrapper)
+            spans_type=args.spans_type)
 
     if args.per_document:
         _print_document_scores(_file_named_scores)

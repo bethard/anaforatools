@@ -215,7 +215,6 @@ def test_score_data():
 
     named_scores = anafora.evaluate.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")])
     assert set(named_scores.keys()) == {
-        "*",
         "Z", ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
     }
@@ -247,10 +246,6 @@ def test_score_data():
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 1
-    scores = named_scores["*"]
-    assert scores.correct == 0
-    assert scores.reference == 2
-    assert scores.predicted == 2
 
 
 def test_score_data_overlap():
@@ -352,7 +347,8 @@ def test_score_data_overlap():
         </annotations>
     </data>
     """))
-    named_scores = anafora.evaluate.score_data(reference, predicted, annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {
         "*", ("*", "<span>"),
         "X", ("X", "<span>"),
@@ -418,8 +414,9 @@ def test_score_data_overlap():
     assert scores.reference == 1 + 2 + 2 + 1
     assert scores.predicted == 2 + 1 + 2
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, exclude=["X", "Y"],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude=["X", "Y"],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {
         "*", ("*", "<span>"),
         "Z", ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
@@ -467,26 +464,28 @@ def test_score_data_overlap():
     assert scores.reference == 2 + 1
     assert scores.predicted == 2
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "T")],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include=[("Z", "Prop1", "T")],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {("Z", "Prop1", "T")}
     scores = named_scores["Z", "Prop1", "T"]
     assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 1
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "F")],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include=[("Z", "Prop1", "F")],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {("Z", "Prop1", "F")}
     scores = named_scores["Z", "Prop1", "F"]
     assert scores.correct == 0
     assert scores.reference == 0
     assert scores.predicted == 1
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include=["Z"], exclude=[("Z", "<span>")],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {
-        "*",
         "Z", ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
         }
@@ -518,10 +517,6 @@ def test_score_data_overlap():
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 1
-    scores = named_scores["*"]
-    assert scores.correct == 0
-    assert scores.reference == 2
-    assert scores.predicted == 2
 
 
 def test_missing_ignored_properties():
@@ -565,7 +560,7 @@ def test_missing_ignored_properties():
 def test_temporal_closure_scores():
 
     def annotation(source, target, value):
-        return anafora.evaluate._AnnotationView((source, target), None, value)
+        return (source, target), None, None, (None, value)
 
     reference = {
         annotation("A", "B", "BEFORE"),
