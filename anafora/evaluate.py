@@ -303,18 +303,6 @@ class TemporalClosureScores(object):
 
 @functools.total_ordering
 class _OverlappingSpans(object):
-    @classmethod
-    def from_tuple(cls, tup):
-        if isinstance(tup, tuple) and tup:
-            child = tup[0]
-            if isinstance(child, tuple) and child:
-                grandchild = child[0]
-                if isinstance(grandchild, int):
-                    return cls(tup)
-            if len(tup) == 1:
-                return cls.from_tuple(tup[0])
-        return tuple(cls.from_tuple(x) for x in tup)
-
     def __init__(self, spans):
         self.spans = spans
 
@@ -367,9 +355,7 @@ class ToSet(object):
     def key(self, annotation):
         if not isinstance(annotation, anafora.AnaforaAnnotation):
             return annotation
-        spans = annotation.spans
-        if self.spans_type is not None:
-            spans = self.spans_type.from_tuple(spans)
+        spans = self._spans(annotation)
         props = None
         if self.prop_name == "*":
             props = tuple((name, self.key(value))
@@ -380,6 +366,22 @@ class ToSet(object):
                     self.select(annotation.type, self.prop_name, self.prop_value):
                 props = self.prop_name, annotation.properties[self.prop_name]
         return spans, annotation.type, props
+
+    def _spans(self, annotation):
+        if isinstance(annotation, anafora.AnaforaEntity):
+            spans = annotation.spans
+            if self.spans_type is not None:
+                spans = self.spans_type(spans)
+        elif isinstance(annotation, anafora.AnaforaRelation):
+            spans = tuple(
+                self._spans(annotation.properties[prop_name])
+                for prop_name in sorted(annotation.properties)
+                if isinstance(annotation.properties[prop_name], anafora.AnaforaAnnotation))
+            if len(spans) == 1:
+                spans = spans[0]
+        else:
+            raise ValueError("unknown annotation type: {0}".format(annotation))
+        return spans
 
     def __call__(self, iterable):
         return {self.key(x) for x in iterable if self.accept(x)}
