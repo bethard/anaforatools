@@ -151,11 +151,18 @@ class TemporalClosureScores(object):
 
     def _is_valid(self, annotation):
 
-        # temporal closure only makes sense with binary relations on a single property
+        # temporal closure only makes sense with binary relations
         try:
-            (start, end), _, _, (name, value) = annotation
+            (start, end), _, prop = annotation
         except (TypeError, ValueError):
-            raise RuntimeError("temporal closure expects binary spans and a single property, but found {0}".format(annotation))
+            msg = "temporal closure requires binary spans, found {0}"
+            raise RuntimeError(msg.format(annotation))
+
+        try:
+            name, value = prop
+        except (TypeError, ValueError):
+            msg = "temporal closure requires a single property, found {0}"
+            raise RuntimeError(msg.format(annotation))
 
         # temporal closure only works on a defined set of temporal relations
         if value not in self._interval_to_point:
@@ -185,7 +192,7 @@ class TemporalClosureScores(object):
 
         # converts an interval relation to point relations
         point_relations = set()
-        intervals, _, _, (_, value) = annotation
+        intervals, _, (_, value) = annotation
         interval1, interval2 = intervals
 
         # the start of an interval is always before its end
@@ -208,9 +215,9 @@ class TemporalClosureScores(object):
     def _to_interval_relations(self, point_relations, annotations):
         # map intervals to names
         interval_names = collections.defaultdict(set)
-        for spans, ann_name, parent_name, (prop_name, _) in annotations:
+        for spans, ann_name, (prop_name, _) in annotations:
             for span in spans:
-                interval_names[span].add((ann_name, parent_name, prop_name))
+                interval_names[span].add((ann_name, prop_name))
 
         # find all pairs of intervals that have some point relation between them (and whose names match)
         pair_names = {}
@@ -227,8 +234,8 @@ class TemporalClosureScores(object):
             for relation, requirements in self._interval_to_point.items():
                 if all(((pair[i1], s1), r, (pair[i2], s2)) in point_relations
                        for i1, s1, r, i2, s2 in requirements):
-                    for ann_name, parent_name, prop_name in names:
-                        interval_relations.add((pair, ann_name, parent_name, (prop_name, relation)))
+                    for ann_name, prop_name in names:
+                        interval_relations.add((pair, ann_name, (prop_name, relation)))
 
         # return the collected relations
         return interval_relations
@@ -372,7 +379,7 @@ class ToSet(object):
             if self.select(annotation.type, self.prop_name) or \
                     self.select(annotation.type, self.prop_name, self.prop_value):
                 props = self.prop_name, annotation.properties[self.prop_name]
-        return spans, annotation.type, annotation.parents_type, props
+        return spans, annotation.type, props
 
     def __call__(self, iterable):
         return {self.key(x) for x in iterable if self.accept(x)}

@@ -1,4 +1,4 @@
-import collections
+import pytest
 
 import anafora
 import anafora.evaluate
@@ -560,7 +560,7 @@ def test_missing_ignored_properties():
 def test_temporal_closure_scores():
 
     def annotation(source, target, value):
-        return (source, target), None, None, (None, value)
+        return (source, target), None, (None, value)
 
     reference = {
         annotation("A", "B", "BEFORE"),
@@ -618,3 +618,168 @@ def test_temporal_closure_scores():
     scores.add(reference, predicted)
     assert scores.precision() == 6.0 / 7.0
     assert scores.recall() ==  4.0 / 9.0
+
+
+def test_temporal_closure_data():
+    reference = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+        <data>
+            <annotations>
+                <entity>
+                    <id>67@e@ID006_clinic_016@gold</id>
+                    <span>2220,2231</span>
+                    <type>TIMEX3</type>
+                    <parentsType>TemporalEntities</parentsType>
+                    <properties>
+                        <Class>DATE</Class>
+                    </properties>
+                </entity>
+                <entity>
+                    <id>20@e@ID006_clinic_016@gold</id>
+                    <span>2211,2219</span>
+                    <type>EVENT</type>
+                    <parentsType>TemporalEntities</parentsType>
+                    <properties>
+                        <DocTimeRel>BEFORE</DocTimeRel>
+                        <Type>N/A</Type>
+                        <Degree>N/A</Degree>
+                        <Polarity>POS</Polarity>
+                        <ContextualModality>ACTUAL</ContextualModality>
+                        <ContextualAspect>N/A</ContextualAspect>
+                        <Permanence>UNDETERMINED</Permanence>
+                    </properties>
+                </entity>
+                <entity>
+                    <id>22@e@ID006_clinic_016@gold</id>
+                    <span>2273,2279</span>
+                    <type>EVENT</type>
+                    <parentsType>TemporalEntities</parentsType>
+                    <properties>
+                        <DocTimeRel>BEFORE</DocTimeRel>
+                        <Type>N/A</Type>
+                        <Degree>N/A</Degree>
+                        <Polarity>POS</Polarity>
+                        <ContextualModality>ACTUAL</ContextualModality>
+                        <ContextualAspect>N/A</ContextualAspect>
+                        <Permanence>UNDETERMINED</Permanence>
+                    </properties>
+                </entity>
+                <relation>
+                    <id>16@r@ID006_clinic_016@gold</id>
+                    <type>TLINK</type>
+                    <parentsType>TemporalRelations</parentsType>
+                    <properties>
+                        <Source>67@e@ID006_clinic_016@gold</Source>
+                        <Type>CONTAINS</Type>
+                        <Target>20@e@ID006_clinic_016@gold</Target>
+                    </properties>
+                </relation>
+                <relation>
+                    <id>36@r@ID006_clinic_016@gold</id>
+                    <type>TLINK</type>
+                    <parentsType>TemporalRelations</parentsType>
+                    <properties>
+                        <Source>20@e@ID006_clinic_016@gold</Source>
+                        <Type>CONTAINS</Type>
+                        <Target>22@e@ID006_clinic_016@gold</Target>
+                    </properties>
+                </relation>
+            </annotations>
+        </data>
+        """))
+    predicted = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>56@regex</id>
+                <type>EVENT</type>
+                <span>2211,2219</span>
+                <properties>
+                    <Polarity>POS</Polarity>
+                    <Degree>N/A</Degree>
+                    <Permanence>UNDETERMINED</Permanence>
+                    <ContextualAspect>N/A</ContextualAspect>
+                    <DocTimeRel>OVERLAP</DocTimeRel>
+                    <Type>N/A</Type>
+                    <ContextualModality>ACTUAL</ContextualModality>
+                </properties>
+            </entity>
+            <entity>
+                <id>57@regex</id>
+                <type>TIMEX3</type>
+                <span>2220,2231</span>
+                <properties>
+                    <Class>DATE</Class>
+                </properties>
+            </entity>
+            <entity>
+                <id>58@regex</id>
+                <type>EVENT</type>
+                <span>2273,2279</span>
+                <properties>
+                    <Polarity>POS</Polarity>
+                    <Degree>N/A</Degree>
+                    <Permanence>UNDETERMINED</Permanence>
+                    <ContextualAspect>N/A</ContextualAspect>
+                    <DocTimeRel>BEFORE/OVERLAP</DocTimeRel>
+                    <Type>EVIDENTIAL</Type>
+                    <ContextualModality>ACTUAL</ContextualModality>
+                </properties>
+            </entity>
+            <relation>
+                <id>57@regex@TLINK@58@regex</id>
+                <type>TLINK</type>
+                <properties>
+                    <Source>57@regex</Source>
+                    <Target>58@regex</Target>
+                    <Type>CONTAINS</Type>
+                </properties>
+            </relation>
+            <relation>
+                <id>55@regex@TLINK@58@regex</id>
+                <type>TLINK</type>
+                <properties>
+                    <Source>56@regex</Source>
+                    <Target>58@regex</Target>
+                    <Type>CONTAINS</Type>
+                </properties>
+            </relation>
+        </annotations>
+    </data>
+    """))
+    # reference: (2220,2231) -> (2211,2219) -> (2273,2279)
+    # predicted: (2220,2231) -> (2211,2219); (2273,2279) -> (2211,2219)
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 0
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include={("TLINK", "Type", "CONTAINS")})
+    scores = named_scores["TLINK", "Type", "CONTAINS"]
+    assert scores.correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include={("TLINK", "Type", "CONTAINS")},
+        scores_type=anafora.evaluate.TemporalClosureScores)
+    scores = named_scores["TLINK", "Type", "CONTAINS"]
+    assert scores.precision_correct == 2
+    assert scores.recall_correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    with pytest.raises(RuntimeError) as exc_info:
+        anafora.evaluate.score_data(
+            reference, predicted, include={"EVENT"},
+            scores_type=anafora.evaluate.TemporalClosureScores)
+    assert "binary spans" in str(exc_info.value)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        anafora.evaluate.score_data(
+            reference, predicted, include={"TLINK"},
+            scores_type=anafora.evaluate.TemporalClosureScores)
+    assert "single property" in str(exc_info.value)
