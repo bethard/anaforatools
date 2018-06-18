@@ -17,32 +17,40 @@ class Select(object):
             for item in exclude:
                 self.exclude.add(item if isinstance(item, tuple) else (item,))
 
-    def __call__(self, type_name, prop_name=None, prop_value=None):
-        def expand(*args):
-            args = [a for a in args if a is not None]
-            result = set()
-            if len(args) == 1:
-                result.add((args[0],))
-                result.add(('*',))
-            else:
-                for rest in expand(*args[1:]):
-                    result.add((args[0],) + rest)
-                    result.add(('*',) + rest)
-            return result
+    @staticmethod
+    def _expand(*args):
+        args = [a for a in args if a is not None]
+        result = set()
+        if len(args) == 1:
+            result.add((args[0],))
+            result.add(('*',))
+        else:
+            for rest in Select._expand(*args[1:]):
+                result.add((args[0],) + rest)
+                result.add(('*',) + rest)
+        return result
 
+    def is_included(self, type_name, prop_name=None, prop_value=None):
         if self.include is not None:
-            if not (expand(type_name) & self.include):
-                if not (expand(type_name, prop_name) & self.include):
-                    if not (expand(type_name, prop_name, prop_value) & self.include):
+            if not (Select._expand(type_name) & self.include):
+                if not (Select._expand(type_name, prop_name) & self.include):
+                    if not (Select._expand(type_name, prop_name, prop_value) & self.include):
                         return False
-        if self.exclude is not None:
-            if expand(type_name) & self.exclude:
-                return False
-            if expand(type_name, prop_name) & self.exclude:
-                return False
-            if expand(type_name, prop_name, prop_value) & self.exclude:
-                return False
         return True
+
+    def is_excluded(self, type_name, prop_name=None, prop_value=None):
+        if self.exclude is not None:
+            if Select._expand(type_name) & self.exclude:
+                return True
+            if Select._expand(type_name, prop_name) & self.exclude:
+                return True
+            if Select._expand(type_name, prop_name, prop_value) & self.exclude:
+                return True
+        return False
+
+    def __call__(self, type_name, prop_name=None, prop_value=None):
+        return self.is_included(type_name, prop_name, prop_value) and \
+               not self.is_excluded(type_name, prop_name, prop_value)
 
 
 def _main(input_dir, output_dir, xml_name_regex="[.]xml$", include=None, exclude=None):

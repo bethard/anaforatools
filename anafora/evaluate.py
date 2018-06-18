@@ -348,8 +348,9 @@ class ToSet(object):
                 if self.prop_name == "*" or self.prop_value == "*":
                     return True
                 if self.prop_name is not None:
-                    if annotation.properties[self.prop_name] == self.prop_value:
-                        return True
+                    if self.prop_name in annotation.properties:
+                        if annotation.properties[self.prop_name] == self.prop_value:
+                            return True
         return False
 
     def key(self, annotation):
@@ -358,16 +359,22 @@ class ToSet(object):
         spans = self._spans(annotation)
         props = None
         if self.prop_name == "*":
-            props = tuple(
-                (name, self.key(value))
-                for name, value in sorted(annotation.properties.items())
-                if annotation.type != self.ann_type
-                or self.select(annotation.type, name, value))
+            props = []
+            for name in sorted(annotation.properties):
+                value = annotation.properties[name]
+                if annotation.type == self.ann_type:
+                    if not self.select(annotation.type, name, value):
+                        continue
+                if isinstance(value, anafora.AnaforaAnnotation):
+                    if self.select.is_excluded(value.type):
+                        continue
+                props.append((name, self.key(value)))
+            props = tuple(props)
         elif self.prop_name is not None and annotation.type == self.ann_type:
-            if self.select(annotation.type, self.prop_name) or \
-                    self.select(annotation.type, self.prop_name, self.prop_value):
-                value = self.key(annotation.properties[self.prop_name])
-                props = self.prop_name, value
+            if self.select(annotation.type, self.prop_name, self.prop_value):
+                if self.prop_name in annotation.properties:
+                    value = self.key(annotation.properties[self.prop_name])
+                    props = self.prop_name, value
         return spans, annotation.type, props
 
     def _spans(self, annotation):

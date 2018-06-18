@@ -159,7 +159,7 @@ def test_score_data():
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
     }
     scores = named_scores["Z"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 2
     scores = named_scores["Z", "<span>"]
@@ -191,7 +191,7 @@ def test_score_data():
     assert scores.reference == 1
     assert scores.predicted == 1
     scores = named_scores["*"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 2
     scores = named_scores["*", "<span>"]
@@ -424,7 +424,7 @@ def test_score_data_overlap():
         "Ref", ("Ref", "<span>"), ("Ref", "Ref"),
         }
     scores = named_scores["Z"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 2
     scores = named_scores["Z", "<span>"]
@@ -456,7 +456,7 @@ def test_score_data_overlap():
     assert scores.reference == 1
     assert scores.predicted == 1
     scores = named_scores["*"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2 + 2
     assert scores.predicted == 2
     scores = named_scores["*", "<span>"]
@@ -732,6 +732,7 @@ def test_temporal_closure_data():
                     <Source>57@regex</Source>
                     <Target>58@regex</Target>
                     <Type>CONTAINS</Type>
+                    <Extra>42</Extra>
                 </properties>
             </relation>
             <relation>
@@ -783,3 +784,106 @@ def test_temporal_closure_data():
             reference, predicted, include={"TLINK"},
             scores_type=anafora.evaluate.TemporalClosureScores)
     assert "single property" in str(exc_info.value)
+
+
+def test_delete_excluded():
+    reference = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>1@e</id>
+                <type>Z</type>
+                <span>1, 3</span>
+                <properties>
+                    <A>2@e</A>
+                </properties>
+            </entity>
+            <entity>
+                <id>2@e</id>
+                <type>Y</type>
+                <span>4, 6</span>
+                <properties>
+                    <B>3@e</B>
+                </properties>
+            </entity>
+            <entity>
+                <id>3@e</id>
+                <type>X</type>
+                <span>7, 9</span>
+            </entity>
+        </annotations>
+    </data>
+    """))
+    predicted = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>4@e</id>
+                <type>Z</type>
+                <span>1, 3</span>
+                <properties>
+                    <A>5@e</A>
+                </properties>
+            </entity>
+            <entity>
+                <id>5@e</id>
+                <type>Y</type>
+                <span>4, 6</span>
+                <properties>
+                    <B>6@e</B>
+                </properties>
+            </entity>
+            <entity>
+                <id>6@e</id>
+                <type>X</type>
+                <span>10, 15</span>
+            </entity>
+        </annotations>
+    </data>
+    """))
+    named_scores = anafora.evaluate.score_data(reference, predicted)
+    scores = named_scores["X"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Y"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Z"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"X"})
+    scores = named_scores["Y"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Z"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"Y"})
+    scores = named_scores["X"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Z"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"Z"})
+    scores = named_scores["X"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Y"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
