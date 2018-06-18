@@ -404,14 +404,6 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
     :return dict: mapping from (annotation type[, property name[, property value]]) to Scores object
     """
 
-    # groups items from iterables by a key function
-    def _group_by(reference_iterable, predicted_iterable, key_function):
-        groups = collections.defaultdict(lambda: (set(), set()))
-        for iterable, index in [(reference_iterable, 0), (predicted_iterable, 1)]:
-            for item in iterable:
-                groups[key_function(item)][index].add(item)
-        return groups
-
     # returns true if this type:property:value is accepted by includes= and excludes=
     select = anafora.select.Select(include, exclude)
 
