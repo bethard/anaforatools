@@ -1,4 +1,4 @@
-import collections
+import pytest
 
 import anafora
 import anafora.evaluate
@@ -159,7 +159,7 @@ def test_score_data():
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
     }
     scores = named_scores["Z"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 2
     scores = named_scores["Z", "<span>"]
@@ -191,7 +191,7 @@ def test_score_data():
     assert scores.reference == 1
     assert scores.predicted == 1
     scores = named_scores["*"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 2
     scores = named_scores["*", "<span>"]
@@ -215,7 +215,6 @@ def test_score_data():
 
     named_scores = anafora.evaluate.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")])
     assert set(named_scores.keys()) == {
-        "*",
         "Z", ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
     }
@@ -247,10 +246,6 @@ def test_score_data():
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 1
-    scores = named_scores["*"]
-    assert scores.correct == 0
-    assert scores.reference == 2
-    assert scores.predicted == 2
 
 
 def test_score_data_overlap():
@@ -343,16 +338,17 @@ def test_score_data_overlap():
                 <id>10</id><!-- different -->
                 <type>Z</type>
                 <properties>
-                    <Source>7</Source>
                     <Target>8</Target>
-                    <Prop1>F</Prop1><!-- different -->
+                    <Source>7</Source>
                     <Prop2>B</Prop2>
+                    <Prop1>F</Prop1><!-- different -->
                 </properties>
             </relation>
         </annotations>
     </data>
     """))
-    named_scores = anafora.evaluate.score_data(reference, predicted, annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {
         "*", ("*", "<span>"),
         "X", ("X", "<span>"),
@@ -418,8 +414,9 @@ def test_score_data_overlap():
     assert scores.reference == 1 + 2 + 2 + 1
     assert scores.predicted == 2 + 1 + 2
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, exclude=["X", "Y"],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude=["X", "Y"],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {
         "*", ("*", "<span>"),
         "Z", ("Z", "<span>"), ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
@@ -427,7 +424,7 @@ def test_score_data_overlap():
         "Ref", ("Ref", "<span>"), ("Ref", "Ref"),
         }
     scores = named_scores["Z"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 2
     scores = named_scores["Z", "<span>"]
@@ -459,7 +456,7 @@ def test_score_data_overlap():
     assert scores.reference == 1
     assert scores.predicted == 1
     scores = named_scores["*"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 2 + 2
     assert scores.predicted == 2
     scores = named_scores["*", "<span>"]
@@ -467,26 +464,28 @@ def test_score_data_overlap():
     assert scores.reference == 2 + 1
     assert scores.predicted == 2
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "T")],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include=[("Z", "Prop1", "T")],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {("Z", "Prop1", "T")}
     scores = named_scores["Z", "Prop1", "T"]
     assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 1
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, include=[("Z", "Prop1", "F")],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include=[("Z", "Prop1", "F")],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {("Z", "Prop1", "F")}
     scores = named_scores["Z", "Prop1", "F"]
     assert scores.correct == 0
     assert scores.reference == 0
     assert scores.predicted == 1
 
-    named_scores = anafora.evaluate.score_data(reference, predicted, include=["Z"], exclude=[("Z", "<span>")],
-                                           annotation_wrapper=anafora.evaluate._OverlappingWrapper)
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include=["Z"], exclude=[("Z", "<span>")],
+        spans_type=anafora.evaluate._OverlappingSpans)
     assert set(named_scores.keys()) == {
-        "*",
         "Z", ("Z", "Source"), ("Z", "Target"), ("Z", "Prop1"), ("Z", "Prop2"),
         ("Z", "Prop1", "T"), ("Z", "Prop1", "F"), ("Z", "Prop2", "A"), ("Z", "Prop2", "B"),
         }
@@ -518,10 +517,6 @@ def test_score_data_overlap():
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 1
-    scores = named_scores["*"]
-    assert scores.correct == 0
-    assert scores.reference == 2
-    assert scores.predicted == 2
 
 
 def test_missing_ignored_properties():
@@ -547,8 +542,8 @@ def test_missing_ignored_properties():
                 <id>4</id>
                 <type>Z</type>
                 <properties>
-                    <A>1</A>
                     <B>2</B>
+                    <A>1</A>
                 </properties>
             </entity>
         </annotations>
@@ -565,7 +560,7 @@ def test_missing_ignored_properties():
 def test_temporal_closure_scores():
 
     def annotation(source, target, value):
-        return anafora.evaluate._AnnotationView((source, target), None, value)
+        return (source, target), None, (None, value)
 
     reference = {
         annotation("A", "B", "BEFORE"),
@@ -623,3 +618,293 @@ def test_temporal_closure_scores():
     scores.add(reference, predicted)
     assert scores.precision() == 6.0 / 7.0
     assert scores.recall() ==  4.0 / 9.0
+
+
+def test_temporal_closure_data():
+    reference = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+        <data>
+            <annotations>
+                <entity>
+                    <id>67@e@ID006_clinic_016@gold</id>
+                    <span>2220,2231</span>
+                    <type>TIMEX3</type>
+                    <parentsType>TemporalEntities</parentsType>
+                    <properties>
+                        <Class>DATE</Class>
+                    </properties>
+                </entity>
+                <entity>
+                    <id>20@e@ID006_clinic_016@gold</id>
+                    <span>2211,2219</span>
+                    <type>EVENT</type>
+                    <parentsType>TemporalEntities</parentsType>
+                    <properties>
+                        <DocTimeRel>BEFORE</DocTimeRel>
+                        <Type>N/A</Type>
+                        <Degree>N/A</Degree>
+                        <Polarity>POS</Polarity>
+                        <ContextualModality>ACTUAL</ContextualModality>
+                        <ContextualAspect>N/A</ContextualAspect>
+                        <Permanence>UNDETERMINED</Permanence>
+                    </properties>
+                </entity>
+                <entity>
+                    <id>22@e@ID006_clinic_016@gold</id>
+                    <span>2273,2279</span>
+                    <type>EVENT</type>
+                    <parentsType>TemporalEntities</parentsType>
+                    <properties>
+                        <DocTimeRel>BEFORE</DocTimeRel>
+                        <Type>N/A</Type>
+                        <Degree>N/A</Degree>
+                        <Polarity>POS</Polarity>
+                        <ContextualModality>ACTUAL</ContextualModality>
+                        <ContextualAspect>N/A</ContextualAspect>
+                        <Permanence>UNDETERMINED</Permanence>
+                    </properties>
+                </entity>
+                <relation>
+                    <id>16@r@ID006_clinic_016@gold</id>
+                    <type>TLINK</type>
+                    <parentsType>TemporalRelations</parentsType>
+                    <properties>
+                        <Source>67@e@ID006_clinic_016@gold</Source>
+                        <Type>CONTAINS</Type>
+                        <Target>20@e@ID006_clinic_016@gold</Target>
+                    </properties>
+                </relation>
+                <relation>
+                    <id>36@r@ID006_clinic_016@gold</id>
+                    <type>TLINK</type>
+                    <parentsType>TemporalRelations</parentsType>
+                    <properties>
+                        <Source>20@e@ID006_clinic_016@gold</Source>
+                        <Type>CONTAINS</Type>
+                        <Target>22@e@ID006_clinic_016@gold</Target>
+                    </properties>
+                </relation>
+            </annotations>
+        </data>
+        """))
+    predicted = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>56@regex</id>
+                <type>EVENT</type>
+                <span>2211,2219</span>
+                <properties>
+                    <Polarity>POS</Polarity>
+                    <Degree>N/A</Degree>
+                    <Permanence>UNDETERMINED</Permanence>
+                    <ContextualAspect>N/A</ContextualAspect>
+                    <DocTimeRel>OVERLAP</DocTimeRel>
+                    <Type>N/A</Type>
+                    <ContextualModality>ACTUAL</ContextualModality>
+                </properties>
+            </entity>
+            <entity>
+                <id>57@regex</id>
+                <type>TIMEX3</type>
+                <span>2220,2231</span>
+                <properties>
+                    <Class>DATE</Class>
+                </properties>
+            </entity>
+            <entity>
+                <id>58@regex</id>
+                <type>EVENT</type>
+                <span>2273,2279</span>
+                <properties>
+                    <Polarity>POS</Polarity>
+                    <Degree>N/A</Degree>
+                    <Permanence>UNDETERMINED</Permanence>
+                    <ContextualAspect>N/A</ContextualAspect>
+                    <DocTimeRel>BEFORE/OVERLAP</DocTimeRel>
+                    <Type>EVIDENTIAL</Type>
+                    <ContextualModality>ACTUAL</ContextualModality>
+                </properties>
+            </entity>
+            <relation>
+                <id>57@regex@TLINK@58@regex</id>
+                <type>TLINK</type>
+                <properties>
+                    <Source>57@regex</Source>
+                    <Target>58@regex</Target>
+                    <Type>CONTAINS</Type>
+                    <Extra>42</Extra>
+                </properties>
+            </relation>
+            <relation>
+                <id>55@regex@TLINK@58@regex</id>
+                <type>TLINK</type>
+                <properties>
+                    <Source>56@regex</Source>
+                    <Target>58@regex</Target>
+                    <Type>CONTAINS</Type>
+                </properties>
+            </relation>
+        </annotations>
+    </data>
+    """))
+    # reference: T(2220,2231) -> E(2211,2219) -> E(2273,2279)
+    # predicted: T(2220,2231) -> E(2211,2219); E(2273,2279) -> E(2211,2219)
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 0
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include={("TLINK", "Type", "CONTAINS")})
+    scores = named_scores["TLINK", "Type", "CONTAINS"]
+    assert scores.correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include={("TLINK", "Type", "CONTAINS")},
+        scores_type=anafora.evaluate.TemporalClosureScores)
+    scores = named_scores["TLINK", "Type", "CONTAINS"]
+    assert scores.precision_correct == 2
+    assert scores.recall_correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"EVENT"}, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"TIMEX3"}, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 0
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"EVENT", "TIMEX3"}, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    with pytest.raises(RuntimeError) as exc_info:
+        anafora.evaluate.score_data(
+            reference, predicted, include={"EVENT"},
+            scores_type=anafora.evaluate.TemporalClosureScores)
+    assert "binary spans" in str(exc_info.value)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        anafora.evaluate.score_data(
+            reference, predicted, include={"TLINK"},
+            scores_type=anafora.evaluate.TemporalClosureScores)
+    assert "single property" in str(exc_info.value)
+
+
+def test_delete_excluded():
+    reference = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>1@e</id>
+                <type>Z</type>
+                <span>1, 3</span>
+                <properties>
+                    <A>2@e</A>
+                </properties>
+            </entity>
+            <entity>
+                <id>2@e</id>
+                <type>Y</type>
+                <span>4, 6</span>
+                <properties>
+                    <B>3@e</B>
+                </properties>
+            </entity>
+            <entity>
+                <id>3@e</id>
+                <type>X</type>
+                <span>7, 9</span>
+            </entity>
+        </annotations>
+    </data>
+    """))
+    predicted = anafora.AnaforaData(anafora.ElementTree.fromstring("""
+    <data>
+        <annotations>
+            <entity>
+                <id>4@e</id>
+                <type>Z</type>
+                <span>1, 3</span>
+                <properties>
+                    <A>5@e</A>
+                </properties>
+            </entity>
+            <entity>
+                <id>5@e</id>
+                <type>Y</type>
+                <span>4, 6</span>
+                <properties>
+                    <B>6@e</B>
+                </properties>
+            </entity>
+            <entity>
+                <id>6@e</id>
+                <type>X</type>
+                <span>10, 15</span>
+            </entity>
+        </annotations>
+    </data>
+    """))
+    named_scores = anafora.evaluate.score_data(reference, predicted)
+    scores = named_scores["X"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Y"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Z"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"X"})
+    scores = named_scores["Y"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Z"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"Y"})
+    scores = named_scores["X"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Z"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"Z"})
+    scores = named_scores["X"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Y"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
