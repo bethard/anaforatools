@@ -215,9 +215,9 @@ class TemporalClosureScores(object):
     def _to_interval_relations(self, point_relations, annotations):
         # map intervals to names
         interval_names = collections.defaultdict(set)
-        for spans, ann_name, (prop_name, _) in annotations:
+        for spans, type_name, (prop_name, _) in annotations:
             for span in spans:
-                interval_names[span].add((ann_name, prop_name))
+                interval_names[span].add((type_name, prop_name))
 
         # find all pairs of intervals that have some point relation between them (and whose names match)
         pair_names = {}
@@ -234,8 +234,8 @@ class TemporalClosureScores(object):
             for relation, requirements in self._interval_to_point.items():
                 if all(((pair[i1], s1), r, (pair[i2], s2)) in point_relations
                        for i1, s1, r, i2, s2 in requirements):
-                    for ann_name, prop_name in names:
-                        interval_relations.add((pair, ann_name, (prop_name, relation)))
+                    for type_name, prop_name in names:
+                        interval_relations.add((pair, type_name, (prop_name, relation)))
 
         # return the collected relations
         return interval_relations
