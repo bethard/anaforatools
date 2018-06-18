@@ -358,13 +358,16 @@ class ToSet(object):
         spans = self._spans(annotation)
         props = None
         if self.prop_name == "*":
-            props = tuple((name, self.key(value))
-                          for name, value in annotation.properties.items()
-                          if self.select(annotation.type, name, value))
-        elif self.prop_name is not None:
+            props = tuple(
+                (name, self.key(value))
+                for name, value in sorted(annotation.properties.items())
+                if annotation.type != self.ann_type
+                or self.select(annotation.type, name, value))
+        elif self.prop_name is not None and annotation.type == self.ann_type:
             if self.select(annotation.type, self.prop_name) or \
                     self.select(annotation.type, self.prop_name, self.prop_value):
-                props = self.prop_name, annotation.properties[self.prop_name]
+                value = self.key(annotation.properties[self.prop_name])
+                props = self.prop_name, value
         return spans, annotation.type, props
 
     def _spans(self, annotation):

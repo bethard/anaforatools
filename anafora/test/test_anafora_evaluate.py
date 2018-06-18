@@ -338,10 +338,10 @@ def test_score_data_overlap():
                 <id>10</id><!-- different -->
                 <type>Z</type>
                 <properties>
-                    <Source>7</Source>
                     <Target>8</Target>
-                    <Prop1>F</Prop1><!-- different -->
+                    <Source>7</Source>
                     <Prop2>B</Prop2>
+                    <Prop1>F</Prop1><!-- different -->
                 </properties>
             </relation>
         </annotations>
@@ -542,8 +542,8 @@ def test_missing_ignored_properties():
                 <id>4</id>
                 <type>Z</type>
                 <properties>
-                    <A>1</A>
                     <B>2</B>
+                    <A>1</A>
                 </properties>
             </entity>
         </annotations>
