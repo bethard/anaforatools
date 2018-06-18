@@ -747,8 +747,8 @@ def test_temporal_closure_data():
         </annotations>
     </data>
     """))
-    # reference: (2220,2231) -> (2211,2219) -> (2273,2279)
-    # predicted: (2220,2231) -> (2211,2219); (2273,2279) -> (2211,2219)
+    # reference: T(2220,2231) -> E(2211,2219) -> E(2273,2279)
+    # predicted: T(2220,2231) -> E(2211,2219); E(2273,2279) -> E(2211,2219)
 
     named_scores = anafora.evaluate.score_data(
         reference, predicted, include={"TLINK"})
@@ -770,6 +770,27 @@ def test_temporal_closure_data():
     scores = named_scores["TLINK", "Type", "CONTAINS"]
     assert scores.precision_correct == 2
     assert scores.recall_correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"EVENT"}, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 1
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"TIMEX3"}, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 0
+    assert scores.reference == 2
+    assert scores.predicted == 2
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, exclude={"EVENT", "TIMEX3"}, include={"TLINK"})
+    scores = named_scores["TLINK"]
+    assert scores.correct == 1
     assert scores.reference == 2
     assert scores.predicted == 2
 
