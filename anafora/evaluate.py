@@ -333,18 +333,18 @@ class ToSet(object):
     def __init__(self,
                  select,
                  spans_type=None,
-                 ann_type="*",
+                 type_name="*",
                  prop_name="*",
                  prop_value="*"):
         self.select = select
         self.spans_type = spans_type
-        self.ann_type = ann_type
+        self.type_name = type_name
         self.prop_name = prop_name
         self.prop_value = prop_value
 
     def accept(self, annotation):
         if self.select(annotation.type, self.prop_name, self.prop_value):
-            if self.ann_type == "*" or annotation.type == self.ann_type:
+            if self.type_name == "*" or annotation.type == self.type_name:
                 if self.prop_name == "*" or self.prop_value == "*":
                     return True
                 if self.prop_name is not None:
@@ -362,7 +362,7 @@ class ToSet(object):
             props = []
             for name in sorted(annotation.properties):
                 value = annotation.properties[name]
-                if annotation.type == self.ann_type:
+                if annotation.type == self.type_name:
                     if not self.select(annotation.type, name, value):
                         continue
                 if isinstance(value, anafora.AnaforaAnnotation):
@@ -370,7 +370,7 @@ class ToSet(object):
                         continue
                 props.append((name, self.key(value)))
             props = tuple(props)
-        elif self.prop_name is not None and annotation.type == self.ann_type:
+        elif self.prop_name is not None and annotation.type == self.type_name:
             if self.select(annotation.type, self.prop_name, self.prop_value):
                 if self.prop_name in annotation.properties:
                     value = self.key(annotation.properties[self.prop_name])
@@ -434,12 +434,12 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                 if select(ann.type):
                     views[ann.type] = ToSet(select=select,
                                             spans_type=spans_type,
-                                            ann_type=ann.type)
+                                            type_name=ann.type)
             if (ann.type, span) not in views:
                 if select(ann.type, span):
                     views[ann.type, span] = ToSet(select=select,
                                                   spans_type=spans_type,
-                                                  ann_type=ann.type,
+                                                  type_name=ann.type,
                                                   prop_name=None)
             for prop_name, prop_value in ann.properties.items():
                 if (ann.type, prop_name) not in views:
@@ -447,7 +447,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                         views[ann.type, prop_name] = ToSet(
                             select=select,
                             spans_type=spans_type,
-                            ann_type=ann.type,
+                            type_name=ann.type,
                             prop_name=prop_name)
                 if not isinstance(prop_value, anafora.AnaforaAnnotation):
                     if (ann.type, prop_name, prop_value) not in views:
@@ -455,7 +455,7 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                             views[ann.type, prop_name, prop_value] = ToSet(
                                 select=select,
                                 spans_type=spans_type,
-                                ann_type=ann.type,
+                                type_name=ann.type,
                                 prop_name=prop_name,
                                 prop_value=prop_value)
 
