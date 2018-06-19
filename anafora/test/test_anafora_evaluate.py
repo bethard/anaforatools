@@ -941,3 +941,22 @@ def test_delete_excluded():
     assert scores.correct == 0
     assert scores.reference == 1
     assert scores.predicted == 1
+
+    named_scores = anafora.evaluate.score_data(
+        reference, predicted, include={("*", "<span>")})
+    scores = named_scores["X", "<span>"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Y", "<span>"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["Z", "<span>"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["W", "<span>"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1

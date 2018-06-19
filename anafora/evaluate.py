@@ -343,7 +343,8 @@ class ToSet(object):
         self.prop_value = prop_value
 
     def accept(self, annotation):
-        if self.select(annotation.type, self.prop_name, self.prop_value):
+        if self.select(annotation.type, self.prop_name, self.prop_value) or \
+                self.select(annotation.type, "<span>"):
             if self.type_name == "*" or annotation.type == self.type_name:
                 if self.prop_name == "*" or self.prop_value == "*":
                     return True
