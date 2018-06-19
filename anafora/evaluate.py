@@ -587,7 +587,8 @@ def score_dirs(reference_dir, predicted_dir, xml_name_regex="[.]xml$", text_dir=
             # if there were some predictions, and if we're using scores that keep track of errors, log the errors
             if predicted_xml_paths:
                 for annotation, message in getattr(scores, "errors", []):
-                    logging.debug('%s: %s: "%s" %s"', text_name, message, _span_text(annotation.spans), annotation)
+                    spans, _, _ = annotation
+                    logging.debug('%s: %s: "%s" %s"', text_name, message, _span_text(spans), annotation)
 
         # generate the file name and the resulting scores
         yield text_name, named_scores
