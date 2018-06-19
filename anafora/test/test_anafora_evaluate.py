@@ -841,6 +841,14 @@ def test_delete_excluded():
                 <type>X</type>
                 <span>7, 9</span>
             </entity>
+            <entity>
+                <id>4@e</id>
+                <type>W</type>
+                <span>20, 30</span>
+                <properties>
+                    <B>3@e</B>
+                </properties>
+            </entity>
         </annotations>
     </data>
     """))
@@ -868,6 +876,14 @@ def test_delete_excluded():
                 <type>X</type>
                 <span>10, 15</span>
             </entity>
+            <entity>
+                <id>7@e</id>
+                <type>W</type>
+                <span>20, 30</span>
+                <properties>
+                    <B></B>
+                </properties>
+            </entity>
         </annotations>
     </data>
     """))
@@ -884,6 +900,10 @@ def test_delete_excluded():
     assert scores.correct == 0
     assert scores.reference == 1
     assert scores.predicted == 1
+    scores = named_scores["W"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
 
     named_scores = anafora.evaluate.score_data(
         reference, predicted, exclude={"X"})
@@ -892,6 +912,10 @@ def test_delete_excluded():
     assert scores.reference == 1
     assert scores.predicted == 1
     scores = named_scores["Z"]
+    assert scores.correct == 1
+    assert scores.reference == 1
+    assert scores.predicted == 1
+    scores = named_scores["W"]
     assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 1

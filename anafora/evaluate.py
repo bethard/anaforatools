@@ -367,7 +367,7 @@ class ToSet(object):
                         continue
                 if isinstance(value, anafora.AnaforaAnnotation):
                     if self.select.is_excluded(value.type):
-                        continue
+                        value = None
                 props.append((name, self.key(value)))
             props = tuple(props)
         elif self.prop_name is not None and annotation.type == self.type_name:
