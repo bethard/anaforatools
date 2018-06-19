@@ -452,7 +452,8 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                 if not isinstance(prop_value, anafora.AnaforaAnnotation):
                     if (ann.type, prop_name, prop_value) not in views:
                         if select(ann.type, prop_name, prop_value):
-                            views[ann.type, prop_name, prop_value] = ToSet(
+                            prop_value_name = "<none>" if prop_value is None else prop_value
+                            views[ann.type, prop_name, prop_value_name] = ToSet(
                                 select=select,
                                 spans_type=spans_type,
                                 type_name=ann.type,

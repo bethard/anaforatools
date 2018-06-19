@@ -529,7 +529,7 @@ def test_missing_ignored_properties():
                 <properties>
                     <A>1</A>
                     <B>2</B>
-                    <C>3</C>
+                    <C></C>
                 </properties>
             </entity>
         </annotations>
@@ -549,6 +549,15 @@ def test_missing_ignored_properties():
         </annotations>
     </data>
     """))
+    named_scores = anafora.evaluate.score_data(reference, predicted)
+    scores = named_scores["Z"]
+    assert scores.correct == 0
+    assert scores.reference == 1
+    assert scores.predicted == 1
+
+    # make sure no exceptions are thrown
+    anafora.evaluate._print_document_scores([("temp", named_scores)])
+
     named_scores = anafora.evaluate.score_data(
         reference, predicted, exclude=[("Z", "C")])
     scores = named_scores["Z"]
