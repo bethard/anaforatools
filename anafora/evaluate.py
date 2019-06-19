@@ -363,12 +363,14 @@ class ToSet(object):
             props = []
             for name in sorted(annotation.properties):
                 value = annotation.properties[name]
+                if value is None:
+                    continue
                 if annotation.type == self.type_name:
                     if not self.select(annotation.type, name, value):
                         continue
                 if isinstance(value, anafora.AnaforaAnnotation):
                     if self.select.is_excluded(value.type):
-                        value = None
+                        continue
                 props.append((name, self.key(value)))
             props = tuple(props)
         elif self.prop_name is not None and annotation.type == self.type_name:
@@ -453,13 +455,13 @@ def score_data(reference_data, predicted_data, include=None, exclude=None,
                 if not isinstance(prop_value, anafora.AnaforaAnnotation):
                     if (ann.type, prop_name, prop_value) not in views:
                         if select(ann.type, prop_name, prop_value):
-                            prop_value_name = "<none>" if prop_value is None else prop_value
-                            views[ann.type, prop_name, prop_value_name] = ToSet(
-                                select=select,
-                                spans_type=spans_type,
-                                type_name=ann.type,
-                                prop_name=prop_name,
-                                prop_value=prop_value)
+                            if prop_value is not None:
+                                views[ann.type, prop_name, prop_value] = ToSet(
+                                    select=select,
+                                    spans_type=spans_type,
+                                    type_name=ann.type,
+                                    prop_name=prop_name,
+                                    prop_value=prop_value)
 
     # fill a mapping from a name (type, type:property or type:property:value) to the corresponding scores
     result = collections.defaultdict(lambda: scores_type())

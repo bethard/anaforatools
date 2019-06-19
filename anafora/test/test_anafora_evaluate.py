@@ -551,7 +551,7 @@ def test_missing_ignored_properties():
     """))
     named_scores = anafora.evaluate.score_data(reference, predicted)
     scores = named_scores["Z"]
-    assert scores.correct == 0
+    assert scores.correct == 1
     assert scores.reference == 1
     assert scores.predicted == 1
 
