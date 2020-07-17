@@ -12,5 +12,5 @@ $ python -m anafora.validate --help
 ```
 
 Requirements:
-* Python 2.7 or later
+* Python 3.6 or later
 * Python [regex](https://pypi.python.org/pypi/regex) module
