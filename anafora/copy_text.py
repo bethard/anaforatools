@@ -16,7 +16,7 @@ def copy_timeml_text(text_dir, anafora_dir, xml_name_regex, write_dct):
             if file_name.endswith(".tml"):
                 file_path = os.path.join(dir_path, file_name)
                 text_name_to_path[file_name[:-4]] = file_path
-                file_folder = dir_path.replace(text_dir, '')
+                file_folder = os.path.relpath(dir_path, text_dir)
                 file_folder = os.path.join(file_folder, file_name[:-4])
                 text_name_to_folder[file_name[:-4]] = file_folder
 
@@ -40,7 +40,7 @@ def copy_plain_text(text_dir, anafora_dir, xml_name_regex, write_dct):
     for dir_path, _, file_names in os.walk(text_dir):
         for file_name in file_names:
             text_name_to_path[file_name] = os.path.join(dir_path, file_name)
-            file_folder = dir_path.replace(text_dir, '')
+            file_folder = os.path.relpath(dir_path, text_dir)
             file_folder = os.path.join(file_folder, file_name)
             text_name_to_folder[file_name] = file_folder
     _copy_text(text_name_to_path=text_name_to_path,
@@ -57,7 +57,7 @@ def copy_mayo_text(text_dir, anafora_dir, xml_name_regex, write_dct):
     for dir_path, _, file_names in os.walk(text_dir):
         for file_name in file_names:
             text_name_to_path[file_name] = os.path.join(dir_path, file_name)
-            file_folder = dir_path.replace(text_dir, '')
+            file_folder = os.path.relpath(dir_path, text_dir)
             file_folder = os.path.join(file_folder, file_name)
             text_name_to_folder[file_name] = file_folder
 
