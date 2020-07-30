@@ -10,17 +10,22 @@ import anafora.timeml
 
 def copy_timeml_text(text_dir, anafora_dir, xml_name_regex, write_dct):
     text_name_to_path = {}
+    text_name_to_folder = {}
     for dir_path, _, file_names in os.walk(text_dir):
         for file_name in file_names:
             if file_name.endswith(".tml"):
                 file_path = os.path.join(dir_path, file_name)
                 text_name_to_path[file_name[:-4]] = file_path
+                file_folder = os.path.relpath(dir_path, text_dir)
+                file_folder = os.path.join(file_folder, file_name[:-4])
+                text_name_to_folder[file_name[:-4]] = file_folder
 
     def get_dct(path):
         dct = anafora.timeml.to_document_creation_time(path)
         return dct[:10]
 
     _copy_text(text_name_to_path=text_name_to_path,
+               text_name_to_folder=text_name_to_folder,
                get_text=anafora.timeml.to_text,
                get_dct=get_dct if write_dct else None,
                anafora_dir=anafora_dir,
@@ -31,10 +36,15 @@ def copy_plain_text(text_dir, anafora_dir, xml_name_regex, write_dct):
     if write_dct:
         raise ValueError("write_dct is not supported for plain text")
     text_name_to_path = {}
+    text_name_to_folder = {}
     for dir_path, _, file_names in os.walk(text_dir):
         for file_name in file_names:
             text_name_to_path[file_name] = os.path.join(dir_path, file_name)
+            file_folder = os.path.relpath(dir_path, text_dir)
+            file_folder = os.path.join(file_folder, file_name)
+            text_name_to_folder[file_name] = file_folder
     _copy_text(text_name_to_path=text_name_to_path,
+               text_name_to_folder=text_name_to_folder,
                get_text=lambda path: open(path).read(),
                get_dct=None,
                anafora_dir=anafora_dir,
@@ -43,9 +53,13 @@ def copy_plain_text(text_dir, anafora_dir, xml_name_regex, write_dct):
 
 def copy_mayo_text(text_dir, anafora_dir, xml_name_regex, write_dct):
     text_name_to_path = {}
+    text_name_to_folder = {}
     for dir_path, _, file_names in os.walk(text_dir):
         for file_name in file_names:
             text_name_to_path[file_name] = os.path.join(dir_path, file_name)
+            file_folder = os.path.relpath(dir_path, text_dir)
+            file_folder = os.path.join(file_folder, file_name)
+            text_name_to_folder[file_name] = file_folder
 
     def get_dct(path):
         dct_pattern = r"\[meta rev_date=\"(?P<m>\d+)/(?P<d>\d+)/(?P<y>\d+)\""
@@ -55,6 +69,7 @@ def copy_mayo_text(text_dir, anafora_dir, xml_name_regex, write_dct):
         return "{y}-{m:02}-{d:02}".format(**kwargs)
 
     _copy_text(text_name_to_path=text_name_to_path,
+               text_name_to_folder=text_name_to_folder,
                get_text=lambda path: open(path).read(),
                get_dct=get_dct if write_dct else None,
                anafora_dir=anafora_dir,
@@ -62,10 +77,30 @@ def copy_mayo_text(text_dir, anafora_dir, xml_name_regex, write_dct):
 
 
 def _copy_text(text_name_to_path,
+               text_name_to_folder,
                get_text,
                get_dct,
                anafora_dir,
                xml_name_regex):
+    if not os.listdir(anafora_dir):
+        _copy_text_output_dir(text_name_to_path,
+                              get_text,
+                              get_dct,
+                              anafora_dir,
+                              text_name_to_folder)
+    else:
+        _copy_text_anafora_dir(text_name_to_path,
+                               get_text,
+                               get_dct,
+                               anafora_dir,
+                               xml_name_regex)
+
+
+def _copy_text_anafora_dir(text_name_to_path,
+                           get_text,
+                           get_dct,
+                           anafora_dir,
+                           xml_name_regex):
     for sub_dir, text_file_name, _ in anafora.walk(
             anafora_dir, xml_name_regex=xml_name_regex):
         if text_file_name not in text_name_to_path:
@@ -78,13 +113,37 @@ def _copy_text(text_name_to_path,
         with open(text_path, 'w') as text_file:
             text_file.write(text)
         if get_dct is not None:
-            dct_path = text_path + ".dct"
-            if os.path.exists(dct_path):
-                sys.exit("DCT file already exists: " + dct_path)
-            dct = get_dct(input_path)
-            with open(dct_path, 'w') as dct_file:
-                dct_file.write(dct)
-                dct_file.write("\n")
+            _copy_dct(get_dct, input_path, text_path)
+
+
+def _copy_text_output_dir(text_name_to_path,
+                          get_text,
+                          get_dct,
+                          output_dir,
+                          text_name_to_folder):
+    for text_file_name in text_name_to_path:
+        text_file_folder = text_name_to_folder[text_file_name]
+        output_path = os.path.join(output_dir, text_file_folder)
+        text_path = os.path.join(output_path, text_file_name)
+        if os.path.exists(text_path):
+            sys.exit("Text file already exists: " + text_path)
+        input_path = text_name_to_path[text_file_name]
+        text = get_text(input_path)
+        os.makedirs(output_path, exist_ok=True)
+        with open(text_path, 'w') as text_file:
+            text_file.write(text)
+        if get_dct is not None:
+            _copy_dct(get_dct, input_path, text_path)
+
+
+def _copy_dct(get_dct, input_path, text_path):
+    dct_path = text_path + ".dct"
+    if os.path.exists(dct_path):
+        sys.exit("DCT file already exists: " + dct_path)
+    dct = get_dct(input_path)
+    with open(dct_path, 'w') as dct_file:
+        dct_file.write(dct)
+        dct_file.write("\n")
 
 
 if __name__ == "__main__":
@@ -97,7 +156,8 @@ if __name__ == "__main__":
                     "Anafora XML directory hierarchy. That is, each text " +
                     "file that exactly matches the name of a directory in " +
                     "the Anafora XML directory hierarchy will be copied into " +
-                    "that directory.")
+                    "that directory. If Anafora XML directory is emtpy, all " +
+                    "the text files will be copied.")
     parser.add_argument(
         "-x", "--xml-name-regex",
         metavar="REGEX", default=".*completed.*[.]xml$",
