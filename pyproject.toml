@@ -1,0 +1,24 @@
+[build-system]
+requires = ["regex"]
+build-backend = "hatchling.build"
+
+[project]
+name = "anaforatools"
+version = "1.2.0"
+authors = [
+  { name="Steven Bethard", email="bethard@arizona.edu" },
+  { name="Egoitz Laparra", email="laparra@arizona.edu" },
+]
+description = "Utilities for working with Anafora annotations"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/bethard/anaforatools"
+"Bug Tracker" = "https://github.com/bethard/anaforatools/issues"
