@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="anaforatools",
-    version="1.1.0",
+    version="1.2.0",
     author="Steven Bethard",
     author_email="bethard@arizona.edu",
     description="Utilities for working with Anafora annotations",
